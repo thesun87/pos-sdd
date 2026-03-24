@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Public+Sans:wght@400;500;600;700;800&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@400,FILL@0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#ec5b13",
+                        "background-light": "#f8f6f6",
+                        "background-dark": "#0f172a", /* Slate 900 for high contrast */
+                    },
+                    fontFamily: {
+                        "display": ["Public Sans"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Public Sans', sans-serif;
+        }
+
+        .kanban-column {
+            min-width: 380px;
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 font-display">
+    <div class="relative flex min-h-screen w-full flex-col overflow-x-hidden">
+        <!-- Header Section -->
+        <header
+            class="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-4 sticky top-0 z-50">
+            <div class="flex items-center gap-4">
+                <div class="p-2 bg-primary rounded-lg text-white">
+                    <span class="material-symbols-outlined text-2xl">restaurant_menu</span>
+                </div>
+                <div>
+                    <h1 class="text-xl font-extrabold tracking-tight">pos-sdd KDS</h1>
+                    <p class="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-widest">Kitchen
+                        Control Center</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-6">
+                <nav class="hidden md:flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                    <button class="px-4 py-2 rounded-lg bg-white dark:bg-slate-700 shadow-sm text-sm font-bold">Tất cả
+                        đơn</button>
+                    <button
+                        class="px-4 py-2 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">Tại
+                        chỗ</button>
+                    <button
+                        class="px-4 py-2 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100">Mang
+                        đi</button>
+                </nav>
+                <div class="h-8 w-px bg-slate-200 dark:border-slate-800"></div>
+                <div class="flex items-center gap-3">
+                    <button
+                        class="flex items-center gap-2 bg-primary text-white px-5 py-2.5 rounded-xl font-bold text-sm shadow-lg shadow-primary/20 hover:brightness-110 transition-all">
+                        <span class="material-symbols-outlined text-lg">grid_view</span>
+                        <span>Đổi chế độ xem</span>
+                    </button>
+                    <div
+                        class="size-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center border-2 border-slate-300 dark:border-slate-600">
+                        <span class="material-symbols-outlined text-slate-600 dark:text-slate-300">person</span>
+                    </div>
+                </div>
+            </div>
+        </header>
+        <!-- Kanban Board Container -->
+        <main class="flex-1 p-6 overflow-x-auto">
+            <div class="flex gap-6 h-full items-start">
+                <!-- Column: Mới nhận (New - Teal) -->
+                <div
+                    class="kanban-column flex flex-col gap-4 bg-slate-100/50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 min-h-[calc(100vh-140px)]">
+                    <div class="flex items-center justify-between pb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-teal-500 animate-pulse"></span>
+                            <h2 class="text-lg font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wide">Mới
+                                nhận</h2>
+                        </div>
+                        <span
+                            class="bg-teal-100 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300 px-3 py-1 rounded-full text-xs font-bold">2
+                            ĐƠN</span>
+                    </div>
+                    <!-- Card 1 -->
+                    <div
+                        class="bg-white dark:bg-slate-900 p-5 rounded-2xl border-2 border-teal-500/30 shadow-xl flex flex-col gap-4 group">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="text-xl font-black text-slate-900 dark:text-white">Bàn 12 - Ăn tại chỗ</h3>
+                                <p
+                                    class="text-teal-600 dark:text-teal-400 font-bold text-sm flex items-center gap-1 mt-1">
+                                    <span class="material-symbols-outlined text-sm">schedule</span>
+                                    02:15
+                                </p>
+                            </div>
+                            <span
+                                class="bg-slate-100 dark:bg-slate-800 text-slate-500 px-2 py-1 rounded text-xs font-mono">#ORD-421</span>
+                        </div>
+                        <div class="space-y-3 py-2 border-y border-slate-100 dark:border-slate-800">
+                            <div class="flex items-center justify-between">
+                                <p class="text-lg font-bold"><span class="text-primary mr-2">x2</span> Phở Bò</p>
+                                <span
+                                    class="text-xs font-bold bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 px-2 py-0.5 rounded uppercase">Không
+                                    hành</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <p class="text-lg font-bold"><span class="text-primary mr-2">x1</span> Coke</p>
+                            </div>
+                        </div>
+                        <button
+                            class="w-full py-5 bg-teal-500 hover:bg-teal-600 text-white rounded-xl font-black text-xl tracking-widest uppercase transition-colors shadow-lg shadow-teal-500/20 active:scale-[0.98]">
+                            HOÀN TẤT
+                        </button>
+                    </div>
+                    <!-- Card 3 -->
+                    <div
+                        class="bg-white dark:bg-slate-900 p-5 rounded-2xl border-2 border-teal-500/10 shadow-lg flex flex-col gap-4">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="text-xl font-black text-slate-900 dark:text-white">Bàn 05 - Ăn tại chỗ</h3>
+                                <p
+                                    class="text-teal-600 dark:text-teal-400 font-bold text-sm flex items-center gap-1 mt-1">
+                                    <span class="material-symbols-outlined text-sm">schedule</span>
+                                    15:45
+                                </p>
+                            </div>
+                        </div>
+                        <div class="space-y-3 py-2 border-y border-slate-100 dark:border-slate-800">
+                            <div class="flex items-center justify-between">
+                                <p class="text-lg font-bold"><span class="text-primary mr-2">x1</span> Phở Gà</p>
+                            </div>
+                        </div>
+                        <button
+                            class="w-full py-5 bg-teal-500 hover:bg-teal-600 text-white rounded-xl font-black text-xl tracking-widest uppercase transition-colors shadow-lg shadow-teal-500/20">
+                            HOÀN TẤT
+                        </button>
+                    </div>
+                </div>
+                <!-- Column: Đang làm (In Progress - Amber) -->
+                <div
+                    class="kanban-column flex flex-col gap-4 bg-slate-100/50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 min-h-[calc(100vh-140px)]">
+                    <div class="flex items-center justify-between pb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                            <h2 class="text-lg font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wide">
+                                Đang làm</h2>
+                        </div>
+                        <span
+                            class="bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300 px-3 py-1 rounded-full text-xs font-bold">1
+                            ĐƠN</span>
+                    </div>
+                    <!-- Card 2 -->
+                    <div
+                        class="bg-white dark:bg-slate-900 p-5 rounded-2xl border-2 border-amber-500 shadow-xl flex flex-col gap-4">
+                        <div class="flex justify-between items-start">
+                            <div class="flex-1">
+                                <div class="flex items-center gap-2">
+                                    <h3 class="text-xl font-black text-slate-900 dark:text-white">Mang đi - Đơn #842
+                                    </h3>
+                                    <span class="material-symbols-outlined text-amber-500">takeout_dining</span>
+                                </div>
+                                <p
+                                    class="text-amber-600 dark:text-amber-400 font-bold text-sm flex items-center gap-1 mt-1">
+                                    <span class="material-symbols-outlined text-sm">timer</span>
+                                    08:30 (Trễ 15p)
+                                </p>
+                            </div>
+                        </div>
+                        <div class="space-y-3 py-2 border-y border-slate-100 dark:border-slate-800">
+                            <div class="flex items-center justify-between">
+                                <p class="text-lg font-bold"><span class="text-primary mr-2">x3</span> Bún Chả</p>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <p class="text-lg font-bold"><span class="text-primary mr-2">x1</span> Nem Rán</p>
+                            </div>
+                        </div>
+                        <button
+                            class="w-full py-5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl font-black text-xl tracking-widest uppercase transition-colors shadow-lg shadow-amber-500/20 active:scale-[0.98]">
+                            HOÀN TẤT
+                        </button>
+                    </div>
+                </div>
+                <!-- Column: Hoàn tất (Done - Green) -->
+                <div
+                    class="kanban-column flex flex-col gap-4 bg-slate-100/50 dark:bg-slate-800/40 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 min-h-[calc(100vh-140px)] opacity-60 grayscale hover:grayscale-0 hover:opacity-100 transition-all">
+                    <div class="flex items-center justify-between pb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                            <h2
+                                class="text-lg font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wide">
+                                Hoàn tất</h2>
+                        </div>
+                        <span
+                            class="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 px-3 py-1 rounded-full text-xs font-bold">RECENT</span>
+                    </div>
+                    <div
+                        class="bg-white/50 dark:bg-slate-900/50 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 border-dashed flex items-center justify-center h-32">
+                        <p class="text-slate-400 font-medium text-center">Đơn đã hoàn tất sẽ hiển thị tại đây</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+        <!-- Footer Stats Bar -->
+        <footer
+            class="bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-6 py-3 flex items-center justify-between text-xs font-bold uppercase tracking-widest">
+            <div class="flex gap-8">
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-500">TỔNG ĐƠN:</span>
+                    <span class="text-slate-900 dark:text-white">03</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-slate-500">T.GIAN CHUẨN BỊ TB:</span>
+                    <span class="text-primary">12:45</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-4 text-slate-500">
+                <div class="flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                    Hệ thống: OK
+                </div>
+                <span>Sync: 1s trước</span>
+            </div>
+        </footer>
+    </div>
+</body>
+
+</html>

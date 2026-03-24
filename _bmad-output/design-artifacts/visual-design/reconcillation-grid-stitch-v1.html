@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>pos-sdd | Đối soát dòng tiền</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#10b77f",
+                        "background-light": "#f8fafc",
+                        "background-dark": "#0f172a",
+                        "slate": {
+                            50: "#f8fafc",
+                            100: "#f1f5f9",
+                            200: "#e2e8f0",
+                            800: "#1e293b",
+                            900: "#0f172a",
+                        }
+                    },
+                    fontFamily: {
+                        "display": ["Inter", "sans-serif"],
+                        "mono": ["JetBrains Mono", "monospace"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.5rem",
+                        "lg": "1rem",
+                        "xl": "1.5rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+</head>
+
+<body class="bg-slate-50 font-display text-slate-800 antialiased min-h-screen">
+    <div class="flex flex-col min-h-screen">
+        <!-- Top Navigation -->
+        <header class="sticky top-0 z-50 bg-white border-b border-slate-200 px-6 lg:px-12">
+            <div class="max-w-[1440px] mx-auto flex items-center justify-between h-16">
+                <div class="flex items-center gap-12">
+                    <div class="flex items-center gap-3">
+                        <div class="bg-primary p-1.5 rounded-lg text-white">
+                            <span class="material-symbols-outlined block text-2xl">account_balance_wallet</span>
+                        </div>
+                        <h1 class="text-xl font-bold tracking-tight text-slate-900">pos-sdd</h1>
+                    </div>
+                    <nav class="hidden md:flex items-center gap-8">
+                        <a class="text-sm font-semibold text-slate-500 hover:text-primary transition-colors"
+                            href="#">Dashboard</a>
+                        <a class="text-sm font-semibold text-slate-500 hover:text-primary transition-colors"
+                            href="#">Giao dịch</a>
+                        <a class="text-sm font-semibold text-primary border-b-2 border-primary py-5" href="#">Đối
+                            soát</a>
+                        <a class="text-sm font-semibold text-slate-500 hover:text-primary transition-colors"
+                            href="#">Báo cáo</a>
+                    </nav>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="relative hidden sm:block">
+                        <span
+                            class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                        <input
+                            class="pl-10 pr-4 py-2 bg-slate-100 border-none rounded-lg text-sm focus:ring-2 focus:ring-primary/20 w-64 transition-all"
+                            placeholder="Tìm kiếm giao dịch..." type="text" />
+                    </div>
+                    <button class="p-2 text-slate-500 hover:bg-slate-100 rounded-full transition-colors relative">
+                        <span class="material-symbols-outlined">notifications</span>
+                        <span
+                            class="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white"></span>
+                    </button>
+                    <div class="h-8 w-8 rounded-full bg-slate-200 overflow-hidden border border-slate-200"
+                        data-alt="User profile avatar placeholder">
+                        <img alt="Avatar" class="w-full h-full object-cover"
+                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuA4F61IWJNEC0J5rhAUgQFNgnFFe3dTPVmF_i6JBs3Y00f-MtlJ4782RfX7n3R9NPIus27JAonOfRGvJgEdSUcp3j2-SfZtU3BnKP1SrSkqFCQ3jnkkF2C79m1tP_U40_HW_GdqSDErYEr7DYdx9Xe13a7Kg9y_M70OaPhBFIrosL_kDB-DqHBpVSM3Hawn-kObcNFmCYdQxKucxyaBMWOZPvcvwsPykKMtk9JFBUFca00oAxwWp1Z4O_AmqCm1KWV1Ux0hzr1QnXs" />
+                    </div>
+                </div>
+            </div>
+        </header>
+        <main class="flex-1 max-w-[1440px] mx-auto w-full px-6 lg:px-12 py-8">
+            <!-- Header Section -->
+            <div class="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-8">
+                <div>
+                    <nav class="flex items-center gap-2 text-xs font-medium text-slate-400 mb-2">
+                        <a class="hover:text-primary" href="#">Trang chủ</a>
+                        <span class="material-symbols-outlined text-xs">chevron_right</span>
+                        <span class="text-slate-600">Đối soát dòng tiền</span>
+                    </nav>
+                    <h2 class="text-3xl font-extrabold text-slate-900 tracking-tight">Đối soát dòng tiền</h2>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button
+                        class="flex items-center gap-2 px-4 py-2 border border-primary text-primary font-bold text-sm rounded-lg hover:bg-primary/5 transition-colors">
+                        <span class="material-symbols-outlined text-lg">download</span>
+                        Xuất Excel
+                    </button>
+                    <button
+                        class="flex items-center gap-2 px-5 py-2 bg-primary text-white font-bold text-sm rounded-lg hover:bg-emerald-600 shadow-sm shadow-emerald-200 transition-all">
+                        <span class="material-symbols-outlined text-lg">add</span>
+                        Tạo kỳ đối soát
+                    </button>
+                </div>
+            </div>
+            <!-- Filters Bar -->
+            <div
+                class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-3 mb-6">
+                <div class="group relative">
+                    <button
+                        class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 transition-colors">
+                        <span class="material-symbols-outlined text-slate-400 text-lg">calendar_today</span>
+                        14/03/2026
+                        <span class="material-symbols-outlined text-slate-400 text-lg">expand_more</span>
+                    </button>
+                </div>
+                <div class="group relative">
+                    <button
+                        class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 transition-colors">
+                        <span class="material-symbols-outlined text-slate-400 text-lg">storefront</span>
+                        Tất cả chi nhánh
+                        <span class="material-symbols-outlined text-slate-400 text-lg">expand_more</span>
+                    </button>
+                </div>
+                <div class="group relative">
+                    <button
+                        class="flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-lg text-sm font-medium text-slate-700 transition-colors">
+                        <span class="material-symbols-outlined text-slate-400 text-lg">payments</span>
+                        Ví MoMo
+                        <span class="material-symbols-outlined text-slate-400 text-lg">expand_more</span>
+                    </button>
+                </div>
+                <div class="h-6 w-px bg-slate-200 mx-1"></div>
+                <button class="text-sm font-semibold text-primary hover:underline px-2">Xóa bộ lọc</button>
+            </div>
+            <!-- Alert Strip -->
+            <div
+                class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-8 flex items-center justify-between shadow-sm">
+                <div class="flex items-center gap-3">
+                    <div class="bg-amber-100 p-2 rounded-lg text-amber-600">
+                        <span class="material-symbols-outlined block">warning</span>
+                    </div>
+                    <div>
+                        <p class="font-bold text-slate-900">Phát hiện 2 giao dịch chênh lệch cần kiểm tra</p>
+                        <p class="text-sm text-slate-600">Hệ thống ghi nhận sự không đồng nhất giữa POS và Đối tác thanh
+                            toán.</p>
+                    </div>
+                </div>
+                <button
+                    class="bg-amber-600 hover:bg-amber-700 text-white px-4 py-1.5 rounded-lg text-sm font-bold transition-colors">
+                    Kiểm tra ngay
+                </button>
+            </div>
+            <!-- Data Grid -->
+            <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left border-collapse">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200">
+                                <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Thời
+                                    gian</th>
+                                <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Mã Đơn
+                                </th>
+                                <th class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Chi
+                                    nhánh</th>
+                                <th
+                                    class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">
+                                    POS Ghi nhận</th>
+                                <th
+                                    class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">
+                                    Đối tác Ghi nhận</th>
+                                <th
+                                    class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">
+                                    Kế toán Nhập</th>
+                                <th
+                                    class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">
+                                    Chênh lệch</th>
+                                <th
+                                    class="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">
+                                    Trạng thái</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-100">
+                            <!-- Row 1 -->
+                            <tr class="hover:bg-slate-50/50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-500 font-medium">10:15</td>
+                                <td class="px-6 py-4 text-sm font-bold text-slate-900">#842</td>
+                                <td class="px-6 py-4 text-sm text-slate-600">CN Quận 1</td>
+                                <td class="px-6 py-4 text-sm font-mono text-slate-900 text-right">150,000</td>
+                                <td class="px-6 py-4 text-sm font-mono text-slate-900 text-right">150,000</td>
+                                <td class="px-6 py-4 text-sm font-mono text-slate-900 text-right">150,000</td>
+                                <td class="px-6 py-4 text-sm font-mono font-bold text-primary text-right">0</td>
+                                <td class="px-6 py-4 text-center">
+                                    <span
+                                        class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-100">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                        Hợp lệ
+                                    </span>
+                                </td>
+                            </tr>
+                            <!-- Row 2 (Highlight/Alert) -->
+                            <tr class="bg-red-50 hover:bg-red-100/70 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-500 font-medium border-l-4 border-red-500">10:45
+                                </td>
+                                <td class="px-6 py-4 text-sm font-bold text-slate-900">#843</td>
+                                <td class="px-6 py-4 text-sm text-slate-600">CN Quận 2</td>
+                                <td class="px-6 py-4 text-sm font-mono text-slate-900 text-right font-medium">200,000
+                                </td>
+                                <td class="px-6 py-4 text-sm font-mono text-slate-900 text-right font-medium">150,000
+                                </td>
+                                <td class="px-6 py-4 text-sm font-mono text-slate-400 text-right">—</td>
+                                <td class="px-6 py-4 text-sm font-mono font-bold text-red-600 text-right">-50,000</td>
+                                <td class="px-6 py-4 text-center">
+                                    <span
+                                        class="inline-flex items-center gap-1 px-2.5 py-1 bg-red-100 text-red-700 text-xs font-black rounded-full border border-red-200 uppercase tracking-tighter">
+                                        <span class="material-symbols-outlined text-[14px]">error</span>
+                                        Review
+                                    </span>
+                                </td>
+                            </tr>
+                            <!-- Row 3 -->
+                            <tr class="hover:bg-slate-50/50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-500 font-medium">11:00</td>
+                                <td class="px-6 py-4 text-sm font-bold text-slate-900">#844</td>
+                                <td class="px-6 py-4 text-sm text-slate-600">CN Quận 1</td>
+                                <td class="px-6 py-4 text-sm font-mono text-slate-900 text-right">45,000</td>
+                                <td class="px-6 py-4 text-sm font-mono text-slate-900 text-right">45,000</td>
+                                <td class="px-6 py-4 text-sm font-mono text-slate-900 text-right">45,000</td>
+                                <td class="px-6 py-4 text-sm font-mono font-bold text-primary text-right">0</td>
+                                <td class="px-6 py-4 text-center">
+                                    <span
+                                        class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-100">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                        Hợp lệ
+                                    </span>
+                                </td>
+                            </tr>
+                            <!-- Placeholder rows for density -->
+                            <tr class="hover:bg-slate-50/50 transition-colors">
+                                <td class="px-6 py-4 text-sm text-slate-500 font-medium">11:15</td>
+                                <td class="px-6 py-4 text-sm font-bold text-slate-900">#845</td>
+                                <td class="px-6 py-4 text-sm text-slate-600">CN Quận 3</td>
+                                <td class="px-6 py-4 text-sm font-mono text-slate-900 text-right">1,250,000</td>
+                                <td class="px-6 py-4 text-sm font-mono text-slate-900 text-right">1,250,000</td>
+                                <td class="px-6 py-4 text-sm font-mono text-slate-900 text-right">1,250,000</td>
+                                <td class="px-6 py-4 text-sm font-mono font-bold text-primary text-right">0</td>
+                                <td class="px-6 py-4 text-center">
+                                    <span
+                                        class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-700 text-xs font-bold rounded-full border border-emerald-100">
+                                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                        Hợp lệ
+                                    </span>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Pagination Footer -->
+                <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                    <p class="text-xs font-medium text-slate-500">Hiển thị 1 - 4 của 128 giao dịch</p>
+                    <div class="flex items-center gap-2">
+                        <button
+                            class="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-slate-600 disabled:opacity-50"
+                            disabled="">
+                            <span class="material-symbols-outlined text-lg">chevron_left</span>
+                        </button>
+                        <button class="px-3 py-1 rounded-lg bg-primary text-white text-xs font-bold">1</button>
+                        <button
+                            class="px-3 py-1 rounded-lg hover:bg-slate-200 text-slate-600 text-xs font-bold transition-colors">2</button>
+                        <button
+                            class="px-3 py-1 rounded-lg hover:bg-slate-200 text-slate-600 text-xs font-bold transition-colors">3</button>
+                        <button
+                            class="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-400 hover:text-slate-600">
+                            <span class="material-symbols-outlined text-lg">chevron_right</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <!-- Summary Cards Section -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng POS</span>
+                        <div class="bg-primary/10 p-2 rounded-lg text-primary">
+                            <span class="material-symbols-outlined text-lg">receipt_long</span>
+                        </div>
+                    </div>
+                    <p class="text-2xl font-black text-slate-900 font-mono">1,645,000</p>
+                    <p class="text-xs text-slate-500 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-xs text-emerald-500">trending_up</span>
+                        +12% so với hôm qua
+                    </p>
+                </div>
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-2">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-slate-500 uppercase tracking-wider">Tổng Đối tác</span>
+                        <div class="bg-blue-50 p-2 rounded-lg text-blue-600">
+                            <span class="material-symbols-outlined text-lg">handshake</span>
+                        </div>
+                    </div>
+                    <p class="text-2xl font-black text-slate-900 font-mono">1,595,000</p>
+                    <p class="text-xs text-slate-500 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-xs text-red-500">trending_down</span>
+                        -3.1% chênh lệch
+                    </p>
+                </div>
+                <div
+                    class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col gap-2 border-l-4 border-l-red-500">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-red-600 uppercase tracking-wider">Chênh lệch cần xử
+                            lý</span>
+                        <div class="bg-red-50 p-2 rounded-lg text-red-600">
+                            <span class="material-symbols-outlined text-lg">priority_high</span>
+                        </div>
+                    </div>
+                    <p class="text-2xl font-black text-red-600 font-mono">-50,000</p>
+                    <p class="text-xs text-slate-500">Cần rà soát 2 giao dịch</p>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+
+</html>

@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap"
+        rel="stylesheet" />
+    <script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#10b77f",
+                        "background-light": "#f8fafc", // Slate 50
+                        "background-dark": "#0f172a", // Slate 900
+                    },
+                    fontFamily: {
+                        "display": ["Inter"]
+                    },
+                    borderRadius: { "DEFAULT": "0.5rem", "lg": "1rem", "xl": "1.5rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+    <style>
+        .glass-topbar {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        }
+    </style>
+</head>
+
+<body class="bg-background-light font-display text-slate-900 overflow-x-hidden">
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        <aside class="w-64 bg-slate-900 text-slate-300 flex flex-col fixed h-full z-50">
+            <div class="p-6 flex items-center gap-3">
+                <div class="size-10 bg-primary rounded-lg flex items-center justify-center text-white">
+                    <span class="material-symbols-outlined">storefront</span>
+                </div>
+                <div>
+                    <h1 class="text-white font-bold text-lg leading-none">pos-sdd</h1>
+                    <p class="text-slate-500 text-xs mt-1 uppercase tracking-wider">Quản trị hệ thống</p>
+                </div>
+            </div>
+            <nav class="flex-1 px-4 mt-4 space-y-1">
+                <div class="flex items-center gap-3 px-3 py-3 rounded-lg bg-primary text-white cursor-pointer">
+                    <span class="material-symbols-outlined">dashboard</span>
+                    <span class="text-sm font-medium">Tổng quan</span>
+                </div>
+                <div
+                    class="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined">analytics</span>
+                    <span class="text-sm font-medium">Báo cáo</span>
+                </div>
+                <div
+                    class="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined">shopping_cart</span>
+                    <span class="text-sm font-medium">Đơn hàng</span>
+                </div>
+                <div
+                    class="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined">restaurant_menu</span>
+                    <span class="text-sm font-medium">Thực đơn</span>
+                </div>
+                <div
+                    class="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined">badge</span>
+                    <span class="text-sm font-medium">Nhân viên</span>
+                </div>
+                <div
+                    class="flex items-center gap-3 px-3 py-3 rounded-lg hover:bg-slate-800 transition-colors cursor-pointer">
+                    <span class="material-symbols-outlined">settings</span>
+                    <span class="text-sm font-medium">Cài đặt</span>
+                </div>
+            </nav>
+            <div class="p-4 border-t border-slate-800">
+                <button
+                    class="w-full bg-primary hover:bg-primary/90 text-white font-semibold py-3 rounded-xl flex items-center justify-center gap-2 text-sm transition-all shadow-lg shadow-primary/20">
+                    <span class="material-symbols-outlined text-sm">add_circle</span>
+                    Thêm chi nhánh
+                </button>
+            </div>
+        </aside>
+        <!-- Main Content -->
+        <main class="flex-1 ml-64 min-w-0">
+            <!-- Topbar -->
+            <header class="glass-topbar sticky top-0 px-8 py-4 flex items-center justify-between z-40">
+                <div class="flex items-center gap-4 flex-1 max-w-xl">
+                    <div class="relative w-full">
+                        <span
+                            class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">search</span>
+                        <input
+                            class="w-full pl-10 pr-4 py-2 bg-slate-100 border-none rounded-xl focus:ring-2 focus:ring-primary/20 text-sm"
+                            placeholder="Tìm kiếm dữ liệu, báo cáo..." type="text" />
+                    </div>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="flex gap-2">
+                        <button
+                            class="size-10 flex items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200">
+                            <span class="material-symbols-outlined">notifications</span>
+                        </button>
+                        <button
+                            class="size-10 flex items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200">
+                            <span class="material-symbols-outlined">forum</span>
+                        </button>
+                    </div>
+                    <div class="h-8 w-[1px] bg-slate-200 mx-2"></div>
+                    <div class="flex items-center gap-3">
+                        <div class="text-right">
+                            <p class="text-sm font-bold leading-none">Admin User</p>
+                            <p class="text-xs text-slate-500 mt-1">Manager</p>
+                        </div>
+                        <div class="size-10 rounded-full bg-slate-200 border-2 border-white shadow-sm overflow-hidden">
+                            <img class="w-full h-full object-cover" data-alt="Ảnh đại diện quản trị viên"
+                                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCfLAlVhTsPLY-VK-bYhvrBUCWMaqeTp2BXsBodskyQemBovcxYukHZ8q0dab4GVxOgWc4S8dT49DYS8qU7u92EMYLt3JNA04YdwlFcadO3gAVBJHTeNaEYp2MBRDN5rmlXAJpzwGBW2qL3uUeXwLWiluXrVf5hCi-PvhgkHw4QtShO5KD2hy-yVa1x8NovQJLQpLcEr52Ja7kImQphXc_G5jlvtNd8gERLFe0CLbdCPN40ewMNP5Nvj3roZGFqb94Gqfdyx2G0Lrw" />
+                        </div>
+                    </div>
+                </div>
+            </header>
+            <!-- Dashboard Content -->
+            <div class="p-8 space-y-8">
+                <!-- KPI Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                    <div
+                        class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="p-2 bg-emerald-50 text-emerald-600 rounded-lg">
+                                <span class="material-symbols-outlined">payments</span>
+                            </div>
+                            <span
+                                class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+12.5%</span>
+                        </div>
+                        <p class="text-slate-500 text-sm font-medium">Doanh thu</p>
+                        <h3 class="text-2xl font-bold text-slate-900 mt-1">125.400.000đ</h3>
+                    </div>
+                    <div
+                        class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="p-2 bg-blue-50 text-blue-600 rounded-lg">
+                                <span class="material-symbols-outlined">groups</span>
+                            </div>
+                            <span class="text-xs font-bold text-rose-600 bg-rose-50 px-2 py-1 rounded-full">-2.1%</span>
+                        </div>
+                        <p class="text-slate-500 text-sm font-medium">Lượt khách</p>
+                        <h3 class="text-2xl font-bold text-slate-900 mt-1">1.240</h3>
+                    </div>
+                    <div
+                        class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="p-2 bg-amber-50 text-amber-600 rounded-lg">
+                                <span class="material-symbols-outlined">receipt_long</span>
+                            </div>
+                            <span
+                                class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+5.4%</span>
+                        </div>
+                        <p class="text-slate-500 text-sm font-medium">Giá trị đơn</p>
+                        <h3 class="text-2xl font-bold text-slate-900 mt-1">101.000đ</h3>
+                    </div>
+                    <div
+                        class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 hover:shadow-md transition-shadow">
+                        <div class="flex justify-between items-start mb-4">
+                            <div class="p-2 bg-purple-50 text-purple-600 rounded-lg">
+                                <span class="material-symbols-outlined">cancel</span>
+                            </div>
+                            <span
+                                class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">-0.8%</span>
+                        </div>
+                        <p class="text-slate-500 text-sm font-medium">Tỷ lệ hủy</p>
+                        <h3 class="text-2xl font-bold text-slate-900 mt-1">2.4%</h3>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <!-- Multi-branch Chart -->
+                    <div class="lg:col-span-2 space-y-6">
+                        <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+                            <div class="flex items-center justify-between mb-8">
+                                <div>
+                                    <h2 class="text-xl font-bold text-slate-900">Hiệu suất đa chi nhánh</h2>
+                                    <p class="text-slate-500 text-sm mt-1">Dữ liệu doanh thu 7 ngày gần nhất</p>
+                                </div>
+                                <select class="bg-slate-50 border-slate-200 rounded-lg text-sm px-3 py-2 outline-none">
+                                    <option>Tuần này</option>
+                                    <option>Tháng này</option>
+                                </select>
+                            </div>
+                            <div class="h-64 flex items-end justify-between gap-4 px-4">
+                                <div class="flex-1 group relative">
+                                    <div class="w-full bg-slate-100 rounded-t-lg transition-all duration-300 hover:bg-primary/40 relative"
+                                        style="height: 80%">
+                                        <div
+                                            class="absolute inset-x-0 top-0 h-1 bg-primary rounded-full -translate-y-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        </div>
+                                    </div>
+                                    <p
+                                        class="text-center text-[11px] font-bold text-slate-500 mt-3 group-hover:text-primary">
+                                        Quận 1</p>
+                                </div>
+                                <div class="flex-1 group relative">
+                                    <div class="w-full bg-slate-100 rounded-t-lg transition-all duration-300 hover:bg-primary/40"
+                                        style="height: 45%"></div>
+                                    <p
+                                        class="text-center text-[11px] font-bold text-slate-500 mt-3 group-hover:text-primary">
+                                        Quận 3</p>
+                                </div>
+                                <div class="flex-1 group relative">
+                                    <div class="w-full bg-slate-100 rounded-t-lg transition-all duration-300 hover:bg-primary/40"
+                                        style="height: 95%"></div>
+                                    <p
+                                        class="text-center text-[11px] font-bold text-slate-500 mt-3 group-hover:text-primary">
+                                        Quận 7</p>
+                                </div>
+                                <div class="flex-1 group relative">
+                                    <div class="w-full bg-slate-100 rounded-t-lg transition-all duration-300 hover:bg-primary/40"
+                                        style="height: 30%"></div>
+                                    <p
+                                        class="text-center text-[11px] font-bold text-slate-500 mt-3 group-hover:text-primary">
+                                        Bình Thạnh</p>
+                                </div>
+                                <div class="flex-1 group relative">
+                                    <div class="w-full bg-slate-100 rounded-t-lg transition-all duration-300 hover:bg-primary/40"
+                                        style="height: 65%"></div>
+                                    <p
+                                        class="text-center text-[11px] font-bold text-slate-500 mt-3 group-hover:text-primary">
+                                        Tân Bình</p>
+                                </div>
+                                <div class="flex-1 group relative">
+                                    <div class="w-full bg-slate-100 rounded-t-lg transition-all duration-300 hover:bg-primary/40"
+                                        style="height: 20%"></div>
+                                    <p
+                                        class="text-center text-[11px] font-bold text-slate-500 mt-3 group-hover:text-primary">
+                                        Phú Nhuận</p>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Additional Context Table (Optional but premium style) -->
+                        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                            <div class="p-6 border-b border-slate-50 flex justify-between items-center">
+                                <h3 class="font-bold text-slate-900">Chi tiết doanh thu chi nhánh</h3>
+                                <button class="text-primary text-sm font-semibold">Xem tất cả</button>
+                            </div>
+                            <table class="w-full text-left">
+                                <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wider">
+                                    <tr>
+                                        <th class="px-6 py-3 font-semibold">Chi nhánh</th>
+                                        <th class="px-6 py-3 font-semibold">Đơn hàng</th>
+                                        <th class="px-6 py-3 font-semibold">Doanh thu</th>
+                                        <th class="px-6 py-3 font-semibold">Trạng thái</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-50">
+                                    <tr class="hover:bg-slate-50 transition-colors">
+                                        <td class="px-6 py-4 text-sm font-medium">Cửa hàng Quận 1</td>
+                                        <td class="px-6 py-4 text-sm text-slate-600">421</td>
+                                        <td class="px-6 py-4 text-sm font-bold">14.2M đ</td>
+                                        <td class="px-6 py-4"><span
+                                                class="px-2 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md">HOẠT
+                                                ĐỘNG</span></td>
+                                    </tr>
+                                    <tr class="hover:bg-slate-50 transition-colors">
+                                        <td class="px-6 py-4 text-sm font-medium">Cửa hàng Quận 7</td>
+                                        <td class="px-6 py-4 text-sm text-slate-600">318</td>
+                                        <td class="px-6 py-4 text-sm font-bold">12.8M đ</td>
+                                        <td class="px-6 py-4"><span
+                                                class="px-2 py-1 bg-emerald-100 text-emerald-700 text-[10px] font-bold rounded-md">HOẠT
+                                                ĐỘNG</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <!-- Right Side: Top Selling & Global Alerts -->
+                    <div class="space-y-6">
+                        <!-- Top Selling -->
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                            <h3 class="font-bold text-slate-900 mb-6">Mặt hàng bán chạy</h3>
+                            <div class="space-y-6">
+                                <div class="flex items-center gap-4">
+                                    <div class="size-14 rounded-xl overflow-hidden flex-shrink-0">
+                                        <img class="w-full h-full object-cover" data-alt="Tô Phở Bò nóng hổi"
+                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8AzZnSkU74TL8ERnq87fcEw_iur67smJEj8gLbFd28tJUdYdVGhGtP9AcU0DVXVGNXahgeCL20Wai2_WVeCxgIVjLCIW9C2H5un7EJe6uQqcGDWHI3cVGNgHdU6s-aseO_SQ_RlwdyPRB-KDwarTXEpIhLNTmGycjOE7v73anWH9Q3Ika3yfPNYd-hrLatF7mVBl1mSD0Q8OnROXw_clLRGdiSChncxHyyFvwOpGgaNGm4xxZ9Rq7aCD8NPCdze2lkq3ua5A-39A" />
+                                    </div>
+                                    <div class="flex-1">
+                                        <h4 class="text-sm font-bold text-slate-900">Phở Bò Tái Lăn</h4>
+                                        <p class="text-xs text-slate-500">1.2k đơn hàng tuần này</p>
+                                        <div class="w-full bg-slate-100 h-1.5 rounded-full mt-2">
+                                            <div class="bg-primary h-full rounded-full" style="width: 85%"></div>
+                                        </div>
+                                    </div>
+                                    <span class="text-xs font-bold text-slate-900">85%</span>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <div class="size-14 rounded-xl overflow-hidden flex-shrink-0">
+                                        <img class="w-full h-full object-cover" data-alt="Bún Chả truyền thống"
+                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmfeJQ712Oa5U1s1EWwHI_--KdmNAtTdwNnu5t1CQn-KpmacJidn_hKv99UMOZn-7AK47fdt1OS0Gk53yUbJR2KiCNwHKAecmDiVTAcA0hC83By43fNVWjCMFk1QDOD8lf9S3TEWvmhhW5y_3NJbPY6C0HtWdjiwJJ9PN_-vpBBaQ3icLYYPGG4YaNUlr-RJ1yE-IvJR8OnN7yUx-HljUx9yFsjxFxWFUWnaKSBtO57y2jU1KBr1IpFouloWBxrk5h0o6LXkLudg8" />
+                                    </div>
+                                    <div class="flex-1">
+                                        <h4 class="text-sm font-bold text-slate-900">Bún Chả Hà Nội</h4>
+                                        <p class="text-xs text-slate-500">890 đơn hàng tuần này</p>
+                                        <div class="w-full bg-slate-100 h-1.5 rounded-full mt-2">
+                                            <div class="bg-primary h-full rounded-full" style="width: 72%"></div>
+                                        </div>
+                                    </div>
+                                    <span class="text-xs font-bold text-slate-900">72%</span>
+                                </div>
+                                <div class="flex items-center gap-4">
+                                    <div class="size-14 rounded-xl overflow-hidden flex-shrink-0">
+                                        <img class="w-full h-full object-cover" data-alt="Nem Rán giòn rụm"
+                                            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCwQZCNQ3UGCEuufsb0S63Vo_gXvRYvA4SPtPSBlIPHSWisQFvkgTSXOuz8X0M88u-Yc2RpH82iY-ZxRoqk4dSUu1tFzSsT_PgQW6joEvnrBhmlGWvU4Rzgb50TIHHxjwUEJBJW2NHgAzi5juetE8OSX7LrehoPgv4sb6dBCvR0g1Aj_I_wmn6B39fr18oqjrfo8t94aG91y3g6BqdiQexCeLBjpaykZgxonCkFu9Ay0bWmyrTBSbqHzVT5lUhVBur3J61PyZ0DRUE" />
+                                    </div>
+                                    <div class="flex-1">
+                                        <h4 class="text-sm font-bold text-slate-900">Nem Rán Giòn</h4>
+                                        <p class="text-xs text-slate-500">654 đơn hàng tuần này</p>
+                                        <div class="w-full bg-slate-100 h-1.5 rounded-full mt-2">
+                                            <div class="bg-primary h-full rounded-full" style="width: 58%"></div>
+                                        </div>
+                                    </div>
+                                    <span class="text-xs font-bold text-slate-900">58%</span>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- Global Alerts -->
+                        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="font-bold text-slate-900">Thông báo hệ thống</h3>
+                                <span class="size-2 bg-rose-500 rounded-full animate-pulse"></span>
+                            </div>
+                            <div class="space-y-4">
+                                <div class="p-3 bg-amber-50 border-l-4 border-amber-400 rounded-r-lg">
+                                    <p class="text-[13px] font-bold text-amber-900 leading-tight">Hết nguyên liệu</p>
+                                    <p class="text-xs text-amber-700 mt-1">Cửa hàng Quận 3 vừa báo hết "Thịt Bò" lúc
+                                        10:45.</p>
+                                </div>
+                                <div class="p-3 bg-blue-50 border-l-4 border-blue-400 rounded-r-lg">
+                                    <p class="text-[13px] font-bold text-blue-900 leading-tight">Cập nhật ứng dụng</p>
+                                    <p class="text-xs text-blue-700 mt-1">Phiên bản 2.4.0 đã sẵn sàng để nâng cấp.</p>
+                                </div>
+                                <div class="p-3 bg-slate-50 border-l-4 border-slate-400 rounded-r-lg">
+                                    <p class="text-[13px] font-bold text-slate-900 leading-tight">Báo cáo tuần</p>
+                                    <p class="text-xs text-slate-700 mt-1">Báo cáo doanh thu tuần đã được tạo xong.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+</body>
+
+</html>

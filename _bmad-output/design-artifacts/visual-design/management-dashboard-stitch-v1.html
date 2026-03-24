@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html class="light" lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta content="width=device-width, initial-scale=1.0" name="viewport" />
+    <title>pos-sdd Manager Dashboard</title>
+    <link href="https://fonts.googleapis.com" rel="preconnect" />
+    <link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&amp;display=swap"
+        rel="stylesheet" />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200"
+        rel="stylesheet" />
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography"></script>
+    <script>
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        primary: "#10b981", // Emerald 500
+                        "background-light": "#f8fafc", // Slate 50
+                        "background-dark": "#0f172a", // Slate 900
+                    },
+                    fontFamily: {
+                        display: ["Inter", "sans-serif"],
+                        sans: ["Inter", "sans-serif"],
+                    },
+                    borderRadius: {
+                        DEFAULT: "16px",
+                    },
+                },
+            },
+        };
+    </script>
+    <style>
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .dark .glass {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+    </style>
+    <style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-slate-100 min-h-screen pb-24">
+    <header class="glass sticky top-0 z-50 px-5 pt-12 pb-4 border-b border-slate-200/50 dark:border-slate-800/50">
+        <div class="flex justify-between items-start mb-4">
+            <div>
+                <p class="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">Chào buổi
+                    sáng,</p>
+                <h1 class="text-xl font-bold">Quản lý <span class="text-primary">pos-sdd</span></h1>
+            </div>
+            <div class="flex gap-3">
+                <button
+                    class="w-10 h-10 flex items-center justify-center rounded-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm relative">
+                    <span class="material-symbols-outlined text-slate-600 dark:text-slate-300">notifications</span>
+                    <span
+                        class="absolute top-2 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-800"></span>
+                </button>
+            </div>
+        </div>
+        <button
+            class="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-full border border-slate-200/50 dark:border-slate-700/50 w-full group">
+            <span class="material-symbols-outlined text-primary text-sm">location_on</span>
+            <span class="text-sm font-semibold flex-1 text-left">Chi nhánh Quận 1</span>
+            <span
+                class="material-symbols-outlined text-slate-400 text-sm group-active:rotate-180 transition-transform">expand_more</span>
+        </button>
+    </header>
+    <main class="px-5 pt-6 space-y-6">
+        <section>
+            <div
+                class="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 relative overflow-hidden">
+                <div class="absolute -right-8 -top-8 w-32 h-32 bg-primary/5 rounded-full"></div>
+                <div class="relative z-10">
+                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400 mb-1">Doanh thu hôm nay</p>
+                    <div class="flex items-baseline gap-2">
+                        <h2 class="text-3xl font-bold text-primary">24,500,000đ</h2>
+                        <span
+                            class="text-xs font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-900/30 px-2 py-0.5 rounded-full flex items-center">
+                            <span class="material-symbols-outlined text-xs">trending_up</span> 12%
+                        </span>
+                    </div>
+                    <div class="mt-4 flex gap-4">
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Hóa đơn</span>
+                            <span class="text-sm font-semibold">142</span>
+                        </div>
+                        <div class="flex flex-col">
+                            <span class="text-[10px] text-slate-400 uppercase tracking-widest font-bold">Giá TB</span>
+                            <span class="text-sm font-semibold">172.5k</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        <section class="grid grid-cols-3 gap-3">
+            <div
+                class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center">
+                <span class="text-[10px] font-bold text-slate-400 uppercase mb-2">Đang chờ</span>
+                <p class="text-lg font-bold text-amber-500">5 <span
+                        class="text-xs font-normal text-slate-500">bàn</span></p>
+            </div>
+            <div
+                class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center">
+                <span class="text-[10px] font-bold text-slate-400 uppercase mb-2">Hủy/Void</span>
+                <p class="text-lg font-bold text-slate-800 dark:text-slate-100">2</p>
+            </div>
+            <div
+                class="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col items-center text-center">
+                <span class="text-[10px] font-bold text-slate-400 uppercase mb-2">Bếp (Avg)</span>
+                <p class="text-lg font-bold text-slate-800 dark:text-slate-100">12 <span
+                        class="text-xs font-normal text-slate-500">phút</span></p>
+            </div>
+        </section>
+        <section>
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="font-bold text-lg">Trung tâm cảnh báo</h3>
+                <span class="text-xs font-medium text-primary">Xem tất cả</span>
+            </div>
+            <div class="space-y-3">
+                <div
+                    class="flex items-center gap-4 bg-red-50 dark:bg-red-900/10 p-4 rounded-2xl border border-red-100 dark:border-red-900/20">
+                    <div
+                        class="w-10 h-10 flex-shrink-0 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center text-red-600 dark:text-red-400">
+                        <span class="material-symbols-outlined">inventory_2</span>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="text-sm font-bold text-red-900 dark:text-red-200">Hết Nguyên liệu</h4>
+                        <p class="text-xs text-red-700/80 dark:text-red-400/80">Thực phẩm: Thịt bò bít tết</p>
+                    </div>
+                    <span class="material-symbols-outlined text-red-400 text-sm">chevron_right</span>
+                </div>
+                <div
+                    class="flex items-center gap-4 bg-amber-50 dark:bg-amber-900/10 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/20">
+                    <div
+                        class="w-10 h-10 flex-shrink-0 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center text-amber-600 dark:text-amber-400">
+                        <span class="material-symbols-outlined">timer</span>
+                    </div>
+                    <div class="flex-1">
+                        <h4 class="text-sm font-bold text-amber-900 dark:text-amber-200">Thời gian phục vụ chậm</h4>
+                        <p class="text-xs text-amber-700/80 dark:text-amber-400/80">Bàn 12 đợi quá 20 phút</p>
+                    </div>
+                    <span class="material-symbols-outlined text-amber-400 text-sm">chevron_right</span>
+                </div>
+            </div>
+        </section>
+        <section>
+            <h3 class="font-bold text-lg mb-3">Xu hướng bán hàng</h3>
+            <div class="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700">
+                <div class="flex items-end justify-between h-24 gap-2 px-1">
+                    <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-t-md h-1/2"></div>
+                    <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-t-md h-3/4"></div>
+                    <div class="w-full bg-primary rounded-t-md h-full opacity-80"></div>
+                    <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-t-md h-2/3"></div>
+                    <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-t-md h-4/5"></div>
+                    <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-t-md h-1/2"></div>
+                    <div class="w-full bg-slate-100 dark:bg-slate-700 rounded-t-md h-3/5"></div>
+                </div>
+                <div class="flex justify-between mt-2 text-[10px] font-bold text-slate-400 uppercase px-1">
+                    <span>T2</span><span>T3</span><span
+                        class="text-primary">T4</span><span>T5</span><span>T6</span><span>T7</span><span>CN</span>
+                </div>
+            </div>
+        </section>
+    </main>
+    <nav
+        class="fixed bottom-0 left-0 right-0 glass border-t border-slate-200/50 dark:border-slate-800/50 px-6 py-3 flex justify-between items-center z-50">
+        <a class="flex flex-col items-center gap-1 text-primary" href="#">
+            <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+            <span class="text-[10px] font-bold uppercase tracking-tight">Tổng quan</span>
+        </a>
+        <a class="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors"
+            href="#">
+            <span class="material-symbols-outlined">analytics</span>
+            <span class="text-[10px] font-bold uppercase tracking-tight">Báo cáo</span>
+        </a>
+        <a class="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors"
+            href="#">
+            <span class="material-symbols-outlined">groups</span>
+            <span class="text-[10px] font-bold uppercase tracking-tight">Nhân viên</span>
+        </a>
+        <a class="flex flex-col items-center gap-1 text-slate-400 dark:text-slate-500 hover:text-primary transition-colors"
+            href="#">
+            <span class="material-symbols-outlined">settings</span>
+            <span class="text-[10px] font-bold uppercase tracking-tight">Cài đặt</span>
+        </a>
+    </nav>
+    <div
+        class="fixed bottom-1 left-1/2 -translate-x-1/2 w-32 h-1 bg-slate-300 dark:bg-slate-700 rounded-full opacity-50 pointer-events-none z-[60]">
+    </div>
+    <script>
+        // Simple dark mode toggle logic for preview (optional)
+        // Checks system preference or can be manually triggered
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.classList.add('dark');
+        }
+    </script>
+
+</body>
+
+</html>
