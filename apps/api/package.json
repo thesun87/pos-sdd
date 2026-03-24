@@ -1,0 +1,42 @@
+{
+  "name": "@pos-sdd/api",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "nest build",
+    "start": "node dist/main",
+    "start:dev": "nest start --watch",
+    "start:prod": "node dist/main",
+    "lint": "eslint src --ext .ts",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:cov": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/platform-express": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
+    "reflect-metadata": "^0.2.0",
+    "rxjs": "^7.8.0",
+    "class-validator": "^0.14.0",
+    "class-transformer": "^0.5.0",
+    "@pos-sdd/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.0",
+    "@pos-sdd/config": "workspace:*",
+    "@types/express": "^5.0.0",
+    "@types/node": "^24.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^6.0.0",
+    "vitest": "^2.0.0",
+    "@swc/core": "^1.0.0",
+    "unplugin-swc": "^1.0.0"
+  }
+}

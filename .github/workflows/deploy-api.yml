@@ -1,0 +1,46 @@
+name: Deploy API
+
+# Placeholder workflow - chưa active
+# Sẽ được hoàn thiện khi deployment infrastructure được setup
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy:
+    name: Deploy NestJS API
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build API
+        run: pnpm turbo build --filter=@pos-sdd/api
+
+      - name: Deploy (placeholder)
+        run: echo "Deploy step sẽ được implement sau"

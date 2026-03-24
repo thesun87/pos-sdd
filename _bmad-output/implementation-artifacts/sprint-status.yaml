@@ -1,0 +1,139 @@
+# generated: 2026-03-24
+# last_updated: 2026-03-24
+# project: pos-sdd
+# project_key: NOKEY
+# tracking_system: file-system
+# story_location: _bmad-output/implementation-artifacts
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic not yet started
+#   - in-progress: Epic actively being worked on
+#   - done: All stories in epic completed
+#
+# Epic Status Transitions:
+#   - backlog → in-progress: Automatically when first story is created (via create-story)
+#   - in-progress → done: Manually when all stories reach 'done' status
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - ready-for-dev: Story file created in stories folder
+#   - in-progress: Developer actively working on implementation
+#   - review: Ready for code review (via Dev's code-review workflow)
+#   - done: Story completed
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - done: Retrospective has been completed
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epic transitions to 'in-progress' automatically when first story is created
+# - Stories can be worked in parallel if team capacity allows
+# - SM typically creates next story after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
+
+generated: 2026-03-24
+last_updated: 2026-03-24 # Story 1-1 moved to review
+project: pos-sdd
+project_key: NOKEY
+tracking_system: file-system
+story_location: _bmad-output/implementation-artifacts
+
+development_status:
+  # Epic 1: Foundation & Project Setup
+  epic-1: in-progress
+  1-1-khoi-tao-turborepo-monorepo-dev-environment: review
+  1-2-database-schema-foundation-prisma-setup: backlog
+  1-3-authentication-system-better-auth-pin-login: backlog
+  1-4-user-account-management-crud: backlog
+  1-5-role-management-4-layer-rbac-setup: backlog
+  1-6-store-scope-assignment-multi-tenant-isolation: backlog
+  1-7-design-system-foundation-modern-bistro-theme: backlog
+  1-8-api-foundation-rest-error-handling-swagger: backlog
+  epic-1-retrospective: optional
+
+  # Epic 2: Menu Management & Catalog
+  epic-2: backlog
+  2-1-category-management-crud-sap-xep: backlog
+  2-2-menu-item-management-crud-hinh-anh: backlog
+  2-3-modifier-groups-topping-system: backlog
+  2-4-combo-set-menu-management: backlog
+  2-5-availability-control-kitchen-station-routing: backlog
+  2-6-menu-sync-to-pos-offline: backlog
+  epic-2-retrospective: optional
+
+  # Epic 3: POS Order Creation & Table Management
+  epic-3: backlog
+  3-1-pos-layout-snap-order-card-ui: backlog
+  3-2-order-creation-lifecycle-management: backlog
+  3-3-order-editing-real-time-kds-update: backlog
+  3-4-cart-actions-contextual-action-sheet-global-order-toolbar: backlog
+  3-5-floor-plan-design-table-crud: backlog
+  3-6-table-status-tracking-table-widget: backlog
+  3-7-table-transfer-merge-split: backlog
+  3-8-split-bill-merge-bill: backlog
+  epic-3-retrospective: optional
+
+  # Epic 4: Kitchen Display System (KDS)
+  epic-4: backlog
+  4-1-kds-layout-auto-station-filtering: backlog
+  4-2-real-time-order-reception-sound-alert: backlog
+  4-3-kds-ticket-ui-progression-states: backlog
+  4-4-sla-countdown-heat-map-indicators: backlog
+  4-5-fifo-queue-management-auto-prioritization: backlog
+  epic-4-retrospective: optional
+
+  # Epic 5: Payment & Cash Shift Management
+  epic-5: backlog
+  5-1-payment-processing-cash-mixed: backlog
+  5-2-vietqr-payment-integration: backlog
+  5-3-receipt-ticket-auto-printing: backlog
+  5-4-shift-cash-drawer-management: backlog
+  5-5-unified-reconciliation-grid-doi-soat-tu-dong: backlog
+  epic-5-retrospective: optional
+
+  # Epic 6: Promotion & Discount Engine
+  epic-6: backlog
+  6-1-basic-discounts-management-tien-mat-gia-dac-biet: backlog
+  6-2-advanced-rules-buy-x-get-y-combos: backlog
+  6-3-scheduled-promotions-happy-hour: backlog
+  6-4-promotion-conditions-stacking-rules: backlog
+  6-5-coupon-voucher-codes: backlog
+  epic-6-retrospective: optional
+
+  # Epic 7: Inventory & Stock Management
+  epic-7: backlog
+  7-1-ingredient-material-management-crud: backlog
+  7-2-inventory-stock-tracking-transactions-nhap-xuat: backlog
+  7-3-recipe-mapping-dinh-nghia-cong-thuc: backlog
+  7-4-auto-deduction-pos-to-inventory-sync: backlog
+  7-5-low-stock-alerts-inventory-reports: backlog
+  epic-7-retrospective: optional
+
+  # Epic 8: Offline Mode & Data Sync
+  epic-8: backlog
+  8-1-sqlite-offline-database-service-worker-setup: backlog
+  8-2-lan-communication-pos-kds-offline: backlog
+  8-3-data-sync-engine-conflict-resolution: backlog
+  8-4-local-backup-device-recovery: backlog
+  epic-8-retrospective: optional
+
+  # Epic 9: Reporting & Real-time Dashboard
+  epic-9: backlog
+  9-1-real-time-dashboard-kpi-widgets: backlog
+  9-2-sales-revenue-reports: backlog
+  9-3-product-performance-order-analytics: backlog
+  9-4-payment-staff-performance-reports: backlog
+  9-5-kitchen-analytics-multi-branch-comparison: backlog
+  epic-9-retrospective: optional
+
+  # Epic 10: Shift Operations & System Configuration
+  epic-10: backlog
+  10-1-shift-area-assignment-for-staff: backlog
+  10-2-global-configuration-workspace: backlog
+  10-3-tax-surcharge-routing-vat-phi-dich-vu: backlog
+  10-4-receipt-identity-print-templates: backlog
+  10-5-global-audit-trail-compliance-logging: backlog
+  epic-10-retrospective: optional

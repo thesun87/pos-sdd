@@ -1,44 +1,60 @@
-# dependencies
-node_modules
+# Dependencies
+node_modules/
 .pnp
 .pnp.js
+.pnpm-store/
 
-# testing
-coverage
-
-# next.js
+# Build outputs
+dist/
 .next/
 out/
-build
+build/
+.turbo/
 
-# turborepo
-.turbo
+# Environment files
+.env
+.env.local
+.env.*.local
 
-# nestjs
-dist
-
-# misc
-.DS_Store
-*.pem
-
-# debug
+# Logs
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 
-# local env files
-.env
-.env*.local
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
 
-# vercel
+# IDE
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Testing
+coverage/
+.nyc_output/
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Prisma
+prisma/migrations/*.sql.bak
+
+# Docker (local override)
+docker-compose.override.yml.local
+
+# Misc
+*.pem
 .vercel
 
-# typescript
-*.tsbuildinfo
-
-# bmad
+# BMad
 _bmad
 .agent
 .claude

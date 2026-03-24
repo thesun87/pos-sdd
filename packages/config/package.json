@@ -1,0 +1,19 @@
+{
+  "name": "@pos-sdd/config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared ESLint, TypeScript, and Tailwind configurations for pos-sdd monorepo",
+  "main": "index.js",
+  "exports": {
+    "./eslint/base": "./eslint/base.js",
+    "./eslint/nextjs": "./eslint/nextjs.js",
+    "./eslint/nestjs": "./eslint/nestjs.js",
+    "./typescript/base": "./typescript/base.json",
+    "./typescript/nextjs": "./typescript/nextjs.json",
+    "./typescript/nestjs": "./typescript/nestjs.json",
+    "./tailwind": "./tailwind/index.js"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.0"
+  }
+}
