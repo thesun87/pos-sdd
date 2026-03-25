@@ -10,10 +10,6 @@
 // Stub export để các package khác có thể import mà không bị lỗi
 export class PrismaClient {
   // Placeholder - sẽ được thay thế ở Story 1.2
-  constructor() {
-    console.warn('PrismaClient placeholder - setup đầy đủ ở Story 1.2');
-  }
-
   async $connect(): Promise<void> {
     // Placeholder
   }
@@ -23,4 +19,11 @@ export class PrismaClient {
   }
 }
 
-export const prisma = new PrismaClient();
+let _prisma: PrismaClient | undefined;
+
+export function getPrisma(): PrismaClient {
+  if (!_prisma) {
+    _prisma = new PrismaClient();
+  }
+  return _prisma;
+}

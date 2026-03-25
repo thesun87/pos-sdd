@@ -3,6 +3,9 @@
 import { CURRENCY } from '../constants/index.js';
 
 export function formatCurrency(amount: number): string {
+  if (!isFinite(amount) || isNaN(amount)) {
+    return '—';
+  }
   return new Intl.NumberFormat(CURRENCY.LOCALE, {
     style: 'currency',
     currency: CURRENCY.CODE,
@@ -11,6 +14,9 @@ export function formatCurrency(amount: number): string {
 
 export function formatDate(date: Date | string, locale = 'vi-VN'): string {
   const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) {
+    return '—';
+  }
   return new Intl.DateTimeFormat(locale, {
     day: '2-digit',
     month: '2-digit',

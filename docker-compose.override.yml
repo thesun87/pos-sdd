@@ -6,10 +6,7 @@ services:
   postgres:
     # Expose additional port for debugging tools (DBeaver, TablePlus, etc.)
     ports:
-      - "5432:5432"
-    environment:
-      # Enable PostgreSQL logging for development
-      POSTGRES_HOST_AUTH_METHOD: trust
+      - "127.0.0.1:5432:5432"
 
   redis:
     # Enable Redis persistence in development
