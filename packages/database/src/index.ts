@@ -1,29 +1,29 @@
-// @pos-sdd/database - Placeholder
-// Prisma client sẽ được setup đầy đủ ở Story 1.2
-//
-// Story 1.2 sẽ:
-// - Khởi tạo Prisma schema
-// - Tạo database migrations
-// - Export PrismaClient thực sự
-// - Setup seeding scripts
+import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
 
-// Stub export để các package khác có thể import mà không bị lỗi
-export class PrismaClient {
-  // Placeholder - sẽ được thay thế ở Story 1.2
-  async $connect(): Promise<void> {
-    // Placeholder
-  }
+export { PrismaClient } from '@prisma/client';
+export type { Prisma } from '@prisma/client';
+export { createTenantPrismaClient } from './middleware/tenant-isolation.js';
+export type { TenantPrismaClient } from './middleware/tenant-isolation.js';
 
-  async $disconnect(): Promise<void> {
-    // Placeholder
+/**
+ * Returns the constructor options for PrismaClient using the PrismaPg adapter.
+ * Use this to avoid duplicating DATABASE_URL + adapter setup across packages.
+ */
+export function createPrismaClientOptions(): ConstructorParameters<typeof PrismaClient>[0] {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error('DATABASE_URL environment variable is not set');
   }
+  const adapter = new PrismaPg({ connectionString: databaseUrl });
+  return { adapter } as ConstructorParameters<typeof PrismaClient>[0];
 }
 
 let _prisma: PrismaClient | undefined;
 
 export function getPrisma(): PrismaClient {
   if (!_prisma) {
-    _prisma = new PrismaClient();
+    _prisma = new PrismaClient(createPrismaClientOptions());
   }
   return _prisma;
 }

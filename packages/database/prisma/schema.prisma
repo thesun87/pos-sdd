@@ -1,0 +1,175 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// === ENUMS ===
+
+enum StoreScopeType {
+  SINGLE_STORE
+  STORE_GROUP
+  ALL_STORES
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  APPROVE
+  REJECT
+  VOID
+  REFUND
+}
+
+// === MODELS ===
+
+model Tenant {
+  id         String   @id @db.Uuid
+  name       String
+  slug       String   @unique
+  settings   Json     @default("{}")
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  stores       Store[]
+  users        User[]
+  roles        Role[]
+  policies     Policy[]
+  audit_logs   AuditLog[]
+
+  @@map("tenants")
+}
+
+model Store {
+  id         String   @id @db.Uuid
+  tenant_id  String   @db.Uuid
+  name       String
+  address    String?
+  phone      String?
+  settings   Json     @default("{}")
+  is_active  Boolean  @default(true)
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  tenant              Tenant                @relation(fields: [tenant_id], references: [id])
+  user_assignments    UserStoreAssignment[]
+  policies            Policy[]
+  audit_logs          AuditLog[]
+
+  @@index([tenant_id])
+  @@map("stores")
+}
+
+model User {
+  id            String   @id @db.Uuid
+  tenant_id     String   @db.Uuid
+  email         String
+  name          String
+  pin_hash      String?
+  password_hash String?
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  tenant           Tenant                @relation(fields: [tenant_id], references: [id])
+  user_roles       UserRole[]
+  store_assignments UserStoreAssignment[]
+  audit_logs       AuditLog[]
+
+  @@unique([tenant_id, email])
+  @@index([tenant_id])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @db.Uuid
+  tenant_id   String   @db.Uuid
+  name        String
+  description String?
+  is_system   Boolean  @default(false)
+  permissions Json     @default("{}")
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  tenant     Tenant     @relation(fields: [tenant_id], references: [id])
+  user_roles UserRole[]
+
+  @@index([tenant_id])
+  @@map("roles")
+}
+
+model UserRole {
+  id      String @id @db.Uuid
+  user_id String @db.Uuid
+  role_id String @db.Uuid
+
+  user User @relation(fields: [user_id], references: [id])
+  role Role @relation(fields: [role_id], references: [id])
+
+  @@unique([user_id, role_id])
+  @@map("user_roles")
+}
+
+model UserStoreAssignment {
+  id         String         @id @db.Uuid
+  user_id    String         @db.Uuid
+  store_id   String         @db.Uuid
+  scope_type StoreScopeType @default(SINGLE_STORE)
+
+  user  User  @relation(fields: [user_id], references: [id])
+  store Store @relation(fields: [store_id], references: [id])
+
+  @@unique([user_id, store_id])
+  @@map("user_store_assignments")
+}
+
+model Policy {
+  id            String   @id @db.Uuid
+  tenant_id     String   @db.Uuid
+  store_id      String?  @db.Uuid
+  role          String
+  action        String
+  resource      String
+  limit         Decimal?
+  override_role String?
+  conditions    Json?
+  is_active     Boolean  @default(true)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  store  Store? @relation(fields: [store_id], references: [id])
+
+  @@index([tenant_id])
+  @@index([tenant_id, role, action, resource])
+  @@map("policies")
+}
+
+model AuditLog {
+  id          String      @id @db.Uuid
+  tenant_id   String      @db.Uuid
+  store_id    String?     @db.Uuid
+  user_id     String      @db.Uuid
+  action      AuditAction
+  resource    String
+  resource_id String?
+  old_data    Json?
+  new_data    Json?
+  ip_address  String?
+  metadata    Json?
+  created_at  DateTime    @default(now())
+
+  tenant Tenant @relation(fields: [tenant_id], references: [id])
+  store  Store? @relation(fields: [store_id], references: [id])
+  user   User   @relation(fields: [user_id], references: [id])
+
+  @@index([tenant_id, created_at])
+  @@index([tenant_id, user_id, created_at])
+  @@map("audit_logs")
+}

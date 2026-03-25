@@ -15,7 +15,11 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "@pos-sdd/shared": "workspace:*",
-    "@pos-sdd/ui": "workspace:*"
+    "@pos-sdd/ui": "workspace:*",
+    "@pos-sdd/database": "workspace:*",
+    "@prisma/adapter-pg": "^7.5.0",
+    "@prisma/client": "^7.5.0",
+    "pg": "^8.20.0"
   },
   "devDependencies": {
     "@pos-sdd/config": "workspace:*",

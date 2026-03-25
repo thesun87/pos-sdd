@@ -1,6 +1,7 @@
 // Shared utilities for pos-sdd monorepo
 
 import { CURRENCY } from '../constants/index.js';
+import { uuidv7 } from 'uuidv7';
 
 export function formatCurrency(amount: number): string {
   if (!isFinite(amount) || isNaN(amount)) {
@@ -25,7 +26,7 @@ export function formatDate(date: Date | string, locale = 'vi-VN'): string {
 }
 
 export function generateId(): string {
-  return crypto.randomUUID();
+  return uuidv7();
 }
 
 export function sleep(ms: number): Promise<void> {
