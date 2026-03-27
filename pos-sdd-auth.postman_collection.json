@@ -1,0 +1,860 @@
+{
+  "info": {
+    "_postman_id": "pos-sdd-auth-collection",
+    "name": "POS-SDD Authentication API",
+    "description": "Postman collection cho Story 1.3 — Custom Auth (NestJS AuthService + Prisma) & PIN Login\n\n**Base URL:** `http://localhost:3001/api/v1`\n\n**Seed data mặc định:**\n- Email: `admin@pos-sdd.local`\n- Password: `Admin@123456`\n- PIN: `123456`\n- Tenant slug: `pos-sdd-demo`\n- Tenant ID: (lấy từ GET /auth/session sau khi sign-in)\n\n**Auth modes:**\n1. Session (HttpOnly cookie `session_token`) — email/password login\n2. JWT Bearer — PIN login cho POS/KDS",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:3001",
+      "type": "string"
+    },
+    {
+      "key": "jwt_token",
+      "value": "",
+      "type": "string",
+      "description": "JWT token nhận được sau PIN login — tự động set bởi test script"
+    },
+    {
+      "key": "admin_email",
+      "value": "admin@pos-sdd.local",
+      "type": "string"
+    },
+    {
+      "key": "admin_password",
+      "value": "Admin@123456",
+      "type": "string"
+    },
+    {
+      "key": "tenant_slug",
+      "value": "pos-sdd-demo",
+      "type": "string"
+    },
+    {
+      "key": "tenant_id",
+      "value": "",
+      "type": "string",
+      "description": "Tenant ID — tự động set sau khi GET /auth/session"
+    },
+    {
+      "key": "pin",
+      "value": "123456",
+      "type": "string"
+    },
+    {
+      "key": "target_user_id",
+      "value": "",
+      "type": "string",
+      "description": "User ID dùng cho reset-pin — tự động set sau khi GET /auth/session"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Session Auth Routes (/api/v1/auth/*)",
+      "description": "Email/password authentication — tạo session lưu trong DB, trả về HttpOnly cookie `session_token`.",
+      "item": [
+        {
+          "name": "Sign Up (Email + Password)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newuser@pos-sdd.local\",\n  \"password\": \"NewUser@123456\",\n  \"name\": \"New User\",\n  \"tenantId\": \"{{tenant_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/sign-up",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "sign-up"]
+            },
+            "description": "Đăng ký user mới bằng email/password.\n\n**Tạo:** User record + Account record (credential provider) trong một DB transaction.\n\n**Validation:**\n- `email`: email hợp lệ\n- `password`: tối thiểu 8 ký tự, có chữ hoa, chữ thường, và chữ số\n- `name`: string không rỗng\n- `tenantId`: UUID hợp lệ\n\n**Lưu ý:** Điền `tenant_id` variable trước (lấy từ GET /auth/session của admin)."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"id\": \"uuid\",\n  \"email\": \"newuser@pos-sdd.local\",\n  \"name\": \"New User\"\n}"
+            },
+            {
+              "name": "409 Conflict — Email đã tồn tại",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"Email đã được sử dụng\"\n}"
+            },
+            {
+              "name": "400 — Password không đủ mạnh",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"statusCode\": 400,\n  \"message\": \"Password phải có ít nhất 8 ký tự, chứa chữ hoa, chữ thường và số\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Sign In (Email + Password)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "// Session cookie được set tự động bởi browser (HttpOnly)",
+                  "// Postman cũng tự lưu cookie nếu Cookie Jar được bật",
+                  "pm.test('Sign in successful', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Response has success flag', () => {",
+                  "        const body = pm.response.json();",
+                  "        pm.expect(body.success).to.be.true;",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\",\n  \"tenantId\": \"{{tenant_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/sign-in",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "sign-in"]
+            },
+            "description": "Đăng nhập bằng email/password.\n\n**Trả về:** HttpOnly cookie `session_token` (7 ngày) + `{ success: true }`.\nSession được lưu trong bảng `sessions` của DB.\n\n**Lưu ý:** `tenantId` là UUID (không phải slug). Dùng Postman Cookie Jar hoặc copy `session_token` cookie thủ công.\n\n**Seed admin:** email `admin@pos-sdd.local`, password `Admin@123456`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true\n}",
+              "header": [
+                {
+                  "key": "Set-Cookie",
+                  "value": "session_token=<token>; Path=/; HttpOnly; SameSite=Lax; Max-Age=604800"
+                }
+              ]
+            },
+            {
+              "name": "401 — Sai password",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"statusCode\": 401,\n  \"message\": \"Thông tin đăng nhập không hợp lệ\"\n}"
+            },
+            {
+              "name": "401 — User bị vô hiệu hóa",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"statusCode\": 401,\n  \"message\": \"Thông tin đăng nhập không hợp lệ\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Session",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    if (body.user) {",
+                  "        pm.collectionVariables.set('target_user_id', body.user.id);",
+                  "        pm.collectionVariables.set('tenant_id', body.user.tenantId);",
+                  "        console.log('User ID saved:', body.user.id);",
+                  "        console.log('Tenant ID saved:', body.user.tenantId);",
+                  "    }",
+                  "    pm.test('Get session successful', () => pm.expect(pm.response.code).to.equal(200));",
+                  "    pm.test('Response has user with roles', () => {",
+                  "        pm.expect(body.user).to.have.property('id');",
+                  "        pm.expect(body.user).to.have.property('roles');",
+                  "        pm.expect(body.user.roles).to.be.an('array');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/session",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "session"]
+            },
+            "description": "Lấy thông tin session hiện tại từ cookie `session_token`.\n\n**Yêu cầu:** Cookie `session_token` (tự động gửi qua Postman Cookie Jar nếu đã Sign In).\n\n**Test script** tự động lưu `target_user_id` và `tenant_id` vào collection variables.\n\n**Trả về:** user info bao gồm roles, store assignments, và tenant context."
+          },
+          "response": [
+            {
+              "name": "200 OK — Session active",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"user\": {\n    \"id\": \"uuid\",\n    \"email\": \"admin@pos-sdd.local\",\n    \"name\": \"System Admin\",\n    \"tenantId\": \"tenant-uuid\",\n    \"roles\": [\"system_admin\"],\n    \"storeAssignments\": []\n  }\n}"
+            },
+            {
+              "name": "401 — Không có session",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"statusCode\": 401,\n  \"message\": \"Chưa đăng nhập\"\n}"
+            },
+            {
+              "name": "401 — Session hết hạn",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"statusCode\": 401,\n  \"message\": \"Session không hợp lệ hoặc đã hết hạn\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Sign Out",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/sign-out",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "sign-out"]
+            },
+            "description": "Đăng xuất — xóa session khỏi DB, clear cookie `session_token`, ghi audit log LOGOUT.\n\n**Idempotent:** Gọi khi không có session vẫn trả về 200 OK.\n\n**Yêu cầu:** Cookie `session_token` (gửi tự động qua Postman Cookie Jar)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2. PIN Auth Routes (/api/v1/auth/*)",
+      "description": "PIN-based authentication cho POS/KDS terminals — trả về JWT Bearer token (24h), hỗ trợ offline.",
+      "item": [
+        {
+          "name": "PIN Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    if (body.token) {",
+                  "        pm.collectionVariables.set('jwt_token', body.token);",
+                  "        console.log('JWT token saved:', body.token.substring(0, 20) + '...');",
+                  "    }",
+                  "    if (body.user && body.user.id) {",
+                  "        pm.collectionVariables.set('target_user_id', body.user.id);",
+                  "        console.log('User ID saved:', body.user.id);",
+                  "    }",
+                  "    pm.test('PIN login successful', () => pm.expect(pm.response.code).to.equal(200));",
+                  "    pm.test('Response has token', () => pm.expect(body).to.have.property('token'));",
+                  "    pm.test('Response has user', () => pm.expect(body).to.have.property('user'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"{{pin}}\",\n  \"tenantSlug\": \"{{tenant_slug}}\",\n  \"email\": \"{{admin_email}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/pin-login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "pin-login"]
+            },
+            "description": "Đăng nhập bằng PIN — dành cho POS/KDS terminals.\n\n**Verify PIN** bằng bcrypt, phát hành JWT token (24h expiry).\n\n**Test script** tự động lưu JWT token vào collection variable `jwt_token`.\n\n**Validation:**\n- `pin`: 4-8 chữ số\n- `tenantSlug`: slug của tenant (ví dụ: `pos-sdd-demo`)\n- `email`: email hợp lệ"
+          },
+          "response": [
+            {
+              "name": "200 OK — PIN login thành công",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"user\": {\n    \"id\": \"uuid\",\n    \"name\": \"System Admin\",\n    \"email\": \"admin@pos-sdd.local\",\n    \"roles\": [\"system_admin\"],\n    \"storeAssignments\": []\n  }\n}"
+            },
+            {
+              "name": "401 — PIN sai",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"statusCode\": 401,\n  \"message\": \"Thông tin đăng nhập không hợp lệ\"\n}"
+            },
+            {
+              "name": "400 — Validation error (PIN format sai)",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"statusCode\": 400,\n  \"message\": [\"PIN phải là 4-8 chữ số\"],\n  \"error\": \"Bad Request\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "PIN Login — Wrong PIN (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"9999\",\n  \"tenantSlug\": \"{{tenant_slug}}\",\n  \"email\": \"{{admin_email}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/pin-login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "pin-login"]
+            },
+            "description": "Test case: PIN sai — expect 401 Unauthorized."
+          }
+        },
+        {
+          "name": "PIN Login — Invalid PIN Format (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"abc\",\n  \"tenantSlug\": \"{{tenant_slug}}\",\n  \"email\": \"{{admin_email}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/pin-login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "pin-login"]
+            },
+            "description": "Test case: PIN format không hợp lệ (chứa chữ) — expect 400 Bad Request từ ValidationPipe."
+          }
+        },
+        {
+          "name": "Set PIN (via JWT)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"654321\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/set-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "set-pin"]
+            },
+            "description": "Đặt PIN cho user hiện tại (xác thực qua JWT Bearer token).\n\n**AuthModeGuard:** Kiểm tra session cookie trước, fallback JWT — cả 2 cách đều được hỗ trợ.\n\n**Validation:**\n- `pin`: 4-8 chữ số"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true\n}"
+            }
+          ]
+        },
+        {
+          "name": "Set PIN (via Session Cookie)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"654321\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/set-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "set-pin"]
+            },
+            "description": "Đặt PIN cho user hiện tại (xác thực qua session cookie `session_token`).\n\n**Yêu cầu:** Cookie `session_token` (gửi tự động qua Postman Cookie Jar nếu đã Sign In)."
+          }
+        },
+        {
+          "name": "Set PIN — Unauthenticated (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"654321\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/set-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "set-pin"]
+            },
+            "description": "Test case: Không có token/cookie — expect 401 Unauthorized từ AuthModeGuard."
+          }
+        },
+        {
+          "name": "Reset PIN (Admin — via JWT)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{target_user_id}}\",\n  \"newPin\": \"111111\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/reset-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "reset-pin"]
+            },
+            "description": "Admin đặt lại PIN cho user khác trong cùng tenant.\n\n**Validate:** target user phải thuộc cùng tenant với admin.\n\n**Validation:**\n- `userId`: UUID hợp lệ\n- `newPin`: 4-8 chữ số\n\n**Điền `target_user_id`:** Tự động set bởi GET /auth/session test script."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"success\": true\n}"
+            }
+          ]
+        },
+        {
+          "name": "Reset PIN — Cross-tenant (expect 403)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"00000000-0000-0000-0000-000000000000\",\n  \"newPin\": \"111111\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/reset-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "reset-pin"]
+            },
+            "description": "Test case: Reset PIN cho user thuộc tenant khác — expect 403 Forbidden hoặc 404 Not Found."
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Error Cases & Edge Cases",
+      "description": "Các test case cho edge cases và error handling.",
+      "item": [
+        {
+          "name": "PIN Login — User not found (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"123456\",\n  \"tenantSlug\": \"{{tenant_slug}}\",\n  \"email\": \"nonexistent@pos-sdd.local\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/pin-login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "pin-login"]
+            },
+            "description": "Test case: Email không tồn tại trong tenant — expect 401 (không expose chi tiết user not found)."
+          }
+        },
+        {
+          "name": "PIN Login — Wrong Tenant Slug (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"123456\",\n  \"tenantSlug\": \"nonexistent-tenant\",\n  \"email\": \"{{admin_email}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/pin-login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "pin-login"]
+            },
+            "description": "Test case: Tenant slug không tồn tại — expect 401."
+          }
+        },
+        {
+          "name": "Sign In — Wrong Password (expect 401)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"WrongPassword@123\",\n  \"tenantId\": \"{{tenant_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/sign-in",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "sign-in"]
+            },
+            "description": "Test case: Password sai — expect 401 Unauthorized."
+          }
+        },
+        {
+          "name": "Sign Up — Email đã tồn tại (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"Admin@123456\",\n  \"name\": \"Duplicate\",\n  \"tenantId\": \"{{tenant_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/sign-up",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "sign-up"]
+            },
+            "description": "Test case: Email đã được đăng ký — expect 409 Conflict."
+          }
+        },
+        {
+          "name": "Get Session — No Cookie (expect 401)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/session",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "session"]
+            },
+            "description": "Test case: GET session không có cookie — expect 401 Unauthorized.\n\n**Lưu ý:** Tắt Postman Cookie Jar hoặc dùng incognito environment để test."
+          }
+        },
+        {
+          "name": "Set PIN — Invalid Format (abc123)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"abc123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/set-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "set-pin"]
+            },
+            "description": "Test case: PIN chứa chữ cái — expect 400 Bad Request."
+          }
+        },
+        {
+          "name": "Set PIN — Too Short (3 digits)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/set-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "set-pin"]
+            },
+            "description": "Test case: PIN quá ngắn (3 chữ số, tối thiểu là 4) — expect 400 Bad Request."
+          }
+        },
+        {
+          "name": "Set PIN — Too Long (9 digits)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"123456789\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/set-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "set-pin"]
+            },
+            "description": "Test case: PIN quá dài (9 chữ số, tối đa là 8) — expect 400 Bad Request."
+          }
+        },
+        {
+          "name": "Reset PIN — Invalid User UUID (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"not-a-valid-uuid\",\n  \"newPin\": \"111111\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/reset-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "reset-pin"]
+            },
+            "description": "Test case: userId không phải UUID hợp lệ — expect 400 Bad Request từ ValidationPipe (@IsUUID decorator)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Workflow: Full Auth Flow",
+      "description": "Thứ tự chạy để test full flow:\n1. Sign In (email/password) → nhận session cookie (HttpOnly, qua Cookie Jar)\n2. GET Session → lấy user info + lưu tenant_id và target_user_id\n3. Set PIN (dùng session cookie)\n4. Sign Out → xóa session\n5. PIN Login → nhận JWT token\n6. Set PIN (dùng JWT) → verify JWT auth hoạt động\n7. Reset PIN (admin) → verify admin có thể reset PIN",
+      "item": [
+        {
+          "name": "Step 1: Sign In to get session cookie",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Step 1 passed: Sign in OK', () => pm.expect(pm.response.code).to.equal(200));",
+                  "// Cookie được lưu tự động trong Postman Cookie Jar"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\",\n  \"tenantId\": \"{{tenant_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/sign-in",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "sign-in"]
+            },
+            "description": "**Lưu ý:** Nếu `tenant_id` chưa có, chạy Sign In không có tenantId trước, rồi dùng GET /auth/session để lấy tenantId, sau đó chạy lại với tenantId."
+          }
+        },
+        {
+          "name": "Step 2: GET Session → save user ID + tenant ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Step 2 passed: Get session OK', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    if (body.user) {",
+                  "        pm.collectionVariables.set('target_user_id', body.user.id);",
+                  "        pm.collectionVariables.set('tenant_id', body.user.tenantId);",
+                  "        console.log('target_user_id =', body.user.id);",
+                  "        console.log('tenant_id =', body.user.tenantId);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/session",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "session"]
+            }
+          }
+        },
+        {
+          "name": "Step 3: Set PIN (using session cookie)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Step 3 passed: Set PIN OK', () => {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(pm.response.json().success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"{{pin}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/set-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "set-pin"]
+            }
+          }
+        },
+        {
+          "name": "Step 4: Sign Out",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Step 4 passed: Sign out OK', () => pm.expect(pm.response.code).to.equal(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/sign-out",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "sign-out"]
+            }
+          }
+        },
+        {
+          "name": "Step 5: PIN Login → get JWT",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Step 5 passed: PIN login OK + JWT received', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('jwt_token', body.token);",
+                  "    pm.test('Response has token', () => pm.expect(body).to.have.property('token'));",
+                  "    pm.test('Response has user', () => pm.expect(body).to.have.property('user'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"{{pin}}\",\n  \"tenantSlug\": \"{{tenant_slug}}\",\n  \"email\": \"{{admin_email}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/pin-login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "pin-login"]
+            }
+          }
+        },
+        {
+          "name": "Step 6: Set new PIN (using JWT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Step 6 passed: Set PIN via JWT OK', () => {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(pm.response.json().success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"pin\": \"{{pin}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/set-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "set-pin"]
+            }
+          }
+        },
+        {
+          "name": "Step 7: Reset PIN (admin via JWT)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Step 7 passed: Reset PIN OK', () => {",
+                  "    pm.expect(pm.response.code).to.equal(200);",
+                  "    pm.expect(pm.response.json().success).to.be.true;",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{target_user_id}}\",\n  \"newPin\": \"{{pin}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/reset-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "reset-pin"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 import { PrismaClient } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 
+export type { SessionWithUser, AccountWithUser } from './auth.js';
+
 export { PrismaClient } from '@prisma/client';
 export type { Prisma } from '@prisma/client';
 export { createTenantPrismaClient } from './middleware/tenant-isolation.js';

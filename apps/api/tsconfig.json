@@ -2,6 +2,7 @@
   "extends": "@pos-sdd/config/typescript/nestjs",
   "compilerOptions": {
     "baseUrl": ".",
+    "outDir": "./dist",
     "paths": {
       "@/*": ["./src/*"]
     }

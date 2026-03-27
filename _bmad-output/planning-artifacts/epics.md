@@ -301,7 +301,7 @@ This document provides the complete epic and story breakdown for pos-sdd, decomp
 ## Epic List
 
 ### Epic 1: Foundation & Project Setup
-Thiết lập nền tảng dự án monorepo (Turborepo + Next.js 16 + NestJS 11), database schema (PostgreSQL + Prisma), hệ thống authentication (Better-Auth 1.5 + PIN), design system ("Modern Bistro" theme), 4-layer RBAC Guards Pipeline + Policy Service, và multi-tenant isolation. Sau epic này, team có thể đăng nhập, phân quyền, và bắt đầu xây dựng nghiệp vụ trên nền tảng nhất quán.
+Thiết lập nền tảng dự án monorepo (Turborepo + Next.js 16 + NestJS 11), database schema (PostgreSQL + Prisma), hệ thống authentication (Custom Auth + PIN), design system ("Modern Bistro" theme), 4-layer RBAC Guards Pipeline + Policy Service, và multi-tenant isolation. Sau epic này, team có thể đăng nhập, phân quyền, và bắt đầu xây dựng nghiệp vụ trên nền tảng nhất quán.
 **FRs covered:** FR52, FR53, FR54, FR55, FR56, FR72
 **UX-DRs:** UX-DR1, UX-DR2, UX-DR15, UX-DR16, UX-DR17, UX-DR24, UX-DR25
 **NFRs:** NFR9, NFR10, NFR11, NFR12, NFR14, NFR16, NFR33, NFR36-40
@@ -359,7 +359,7 @@ Quản trị viên quản lý ca làm việc (mở/đóng ca, gán nhân sự, l
 
 ## Epic 1: Foundation & Project Setup
 
-Thiết lập nền tảng dự án monorepo (Turborepo + Next.js 16 + NestJS 11), database schema (PostgreSQL + Prisma), hệ thống authentication (Better-Auth 1.5 + PIN), design system ("Modern Bistro" theme), 4-layer RBAC Guards Pipeline + Policy Service, và multi-tenant isolation. Sau epic này, team có thể đăng nhập, phân quyền, và bắt đầu xây dựng nghiệp vụ trên nền tảng nhất quán.
+Thiết lập nền tảng dự án monorepo (Turborepo + Next.js 16 + NestJS 11), database schema (PostgreSQL + Prisma), hệ thống authentication (Custom Auth + PIN), design system ("Modern Bistro" theme), 4-layer RBAC Guards Pipeline + Policy Service, và multi-tenant isolation. Sau epic này, team có thể đăng nhập, phân quyền, và bắt đầu xây dựng nghiệp vụ trên nền tảng nhất quán.
 
 ### Story 1.1: Khởi tạo Turborepo Monorepo & Dev Environment
 
@@ -391,17 +391,17 @@ So that **các module nghiệp vụ có thể mở rộng schema khi cần, tuâ
 **And** `@pos-sdd/database` export Prisma client sẵn sàng import từ `apps/web` và `apps/api`
 **And** Prisma middleware auto-inject `WHERE tenant_id = ?` trên mọi query (multi-tenant isolation — FR72)
 
-### Story 1.3: Authentication System — Better-Auth + PIN Login
+### Story 1.3: Authentication System — Custom Auth + PIN Login
 
 As a **nhân viên cửa hàng**,
-I want **đăng nhập vào hệ thống bằng email/mật khẩu (Dashboard) hoặc mã PIN (POS)**,
+I want **đăng nhập vào hệ thống bằng email/mật khẩu (Dashboard) hoặc mã PIN (POS) qua Custom Auth**,
 So that **tôi truy cập được chức năng phù hợp với vai trò của mình một cách nhanh chóng và bảo mật** (FR56).
 
 **Acceptance Criteria:**
 
 **Given** user account đã tồn tại trong hệ thống
 **When** user đăng nhập qua email/password trên Dashboard
-**Then** Better-Auth 1.5 xác thực thành công, trả về session cookie, redirect về Dashboard
+**Then** Custom AuthService xác thực thành công, trả về session cookie (HttpOnly), redirect về Dashboard
 **And** password được hash bằng bcrypt (NFR11)
 
 **Given** thu ngân có PIN 4-6 số

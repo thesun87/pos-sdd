@@ -19,7 +19,7 @@ _This file contains critical rules and patterns that AI agents must follow when 
 
 - **Monorepo:** Turborepo 2.x, pnpm
 - **Frontend:** Next.js 16 (App Router, Turbopack), Tailwind CSS v4, Shadcn UI, Framer Motion, Zustand, TanStack Query, React Hook Form, Zod
-- **Backend:** NestJS 11, Socket.IO, Better-Auth 1.5
+- **Backend:** NestJS 11, Socket.IO, Custom Auth (NestJS AuthService + Prisma)
 - **Database:** PostgreSQL, Prisma 7.x, SQLite (wa-sqlite + OPFS for offline-first)
 - **Language:** TypeScript 6.0+, Node.js 24 LTS
 - **Testing:** Vitest, React Testing Library, Playwright

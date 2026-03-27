@@ -140,10 +140,10 @@ npx create-turbo@latest pos-sdd --use-pnpm
 - SWC — Default compiler cho NestJS 11
 
 **Authentication:**
-- Better-Auth 1.5 — Plugin-based, TypeScript-first
-- OAuth 2.1 Provider Plugin — Sẵn sàng cho enterprise SSO
-- Audit logs built-in — Phù hợp yêu cầu audit trail của pos-sdd
+- Custom Auth (NestJS AuthService + Prisma) — Full schema control, không phụ thuộc external runtime
+- Session management: HttpOnly cookie + `sessions` table (Prisma-native)
 - PIN-based auth — Custom implementation cho POS offline
+- JWT (jose) — Cho POS/KDS offline-capable
 
 **Testing Framework:**
 - Vitest — Default cho NestJS 11 (thay Jest)
@@ -282,7 +282,7 @@ SQLite (wa-sqlite/OPFS)  ←→  NestJS Sync Module  ←→  PostgreSQL (Prisma)
 
 | Decision | Choice | Rationale |
 |----------|--------|----------|
-| **Identity Provider** | Better-Auth 1.5 | Plugin-based, TypeScript-first, audit logs built-in, NestJS + Next.js integration |
+| **Identity Provider** | Custom Auth (NestJS AuthService + Prisma) | Full schema control, no external runtime dependency, body parser intact, Prisma-native session management |
 | **Authorization Pattern** | NestJS Guards Pipeline + Policy Service (DB-driven) | Custom design by Tuan — 4-layer pipeline đọc rules từ database |
 | **POS Offline Auth** | Cached JWT + PIN verification local | Cache JWT khi online, PIN verify against bcrypt hash trong SQLite khi offline |
 | **API Security** | Hybrid: Session (Web) + JWT (POS/KDS) | Session-based cho Dashboard/Management (secure), JWT cho POS/KDS (offline-capable) |

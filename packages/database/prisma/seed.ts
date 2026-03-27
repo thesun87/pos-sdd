@@ -1,3 +1,11 @@
+import { config } from 'dotenv';
+import { resolve } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = resolve(fileURLToPath(import.meta.url), '..');
+config({ path: resolve(__dirname, '../../../.env') });
+config({ path: resolve(__dirname, '../.env') });
+
 import { PrismaClient } from '@prisma/client';
 import { createPrismaClientOptions } from '../src/index.js';
 import { hashSync } from 'bcryptjs';
@@ -221,6 +229,24 @@ async function main() {
     },
   });
   console.log(`✅ Admin user assigned system_admin role`);
+
+  // === CUSTOM AUTH ACCOUNT RECORD ===
+  // Tạo Account record cho admin user (credential provider)
+  // Custom AuthService lưu password hash trong Account.password
+  await prisma.account.upsert({
+    where: {
+      id: '01900000-0000-7000-8000-000000000401',
+    },
+    update: {},
+    create: {
+      id: '01900000-0000-7000-8000-000000000401',
+      user_id: adminUser.id,
+      account_id: adminUser.email,       // Provider's user ID = email
+      provider_id: 'credential',          // Email/password provider
+      password: passwordHash,            // Custom Auth lưu password hash trong Account.password
+    },
+  });
+  console.log(`✅ Custom Auth Account record created for admin user`);
 
   console.log('\n🎉 Seed completed successfully!');
 }

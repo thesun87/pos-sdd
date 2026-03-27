@@ -43,11 +43,13 @@
   },
   "devDependencies": {
     "@pos-sdd/config": "workspace:*",
+    "@types/bcryptjs": "^3.0.0",
     "tsup": "^8.0.0",
     "typescript": "^6.0.0",
     "vitest": "^2.0.0"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "uuidv7": "^1.2.1"
   }
 }

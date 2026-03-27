@@ -11,24 +11,24 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "next": "^16.0.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0",
+    "@pos-sdd/database": "workspace:*",
     "@pos-sdd/shared": "workspace:*",
     "@pos-sdd/ui": "workspace:*",
-    "@pos-sdd/database": "workspace:*",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
-    "pg": "^8.20.0"
+    "next": "^16.0.0",
+    "pg": "^8.20.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@pos-sdd/config": "workspace:*",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^6.0.0",
     "eslint": "^9.0.0",
     "eslint-config-next": "^16.0.0",
+    "typescript": "^6.0.0",
     "vitest": "^2.0.0"
   }
 }

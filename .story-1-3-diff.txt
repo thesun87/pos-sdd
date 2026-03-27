@@ -1,0 +1,3234 @@
+diff --git a/.env.example b/.env.example
+index 7dcf692..2e4384d 100644
+--- a/.env.example
++++ b/.env.example
+@@ -12,8 +12,10 @@ WEB_PORT=3000
+ NEXT_PUBLIC_API_URL="http://localhost:3001"
+ WEB_URL="http://localhost:3000"
+ 
+-# Auth (sẽ dùng ở Story 1.3)
+-BETTER_AUTH_SECRET="change-me-in-production"
++# Custom Auth (Story 1.3)
++AUTH_JWT_SECRET="change-me-in-production-must-be-at-least-32-chars"
++AUTH_URL="http://localhost:3001"
++SESSION_EXPIRES_IN="7d"
+ 
+ # Turborepo Remote Cache (optional for local dev)
+ TURBO_TOKEN=""
+diff --git a/apps/api/package.json b/apps/api/package.json
+index 8a4748c..bb00296 100644
+--- a/apps/api/package.json
++++ b/apps/api/package.json
+@@ -16,33 +16,39 @@
+   },
+   "dependencies": {
+     "@nestjs/common": "^11.0.0",
++    "@nestjs/config": "^4.0.0",
+     "@nestjs/core": "^11.0.0",
+     "@nestjs/platform-express": "^11.0.0",
+-    "@nestjs/config": "^4.0.0",
+-    "reflect-metadata": "^0.2.0",
+-    "rxjs": "^7.8.0",
+-    "class-validator": "^0.14.0",
+-    "class-transformer": "^0.5.0",
+-    "@pos-sdd/shared": "workspace:*",
+     "@pos-sdd/database": "workspace:*",
++    "@pos-sdd/shared": "workspace:*",
+     "@prisma/adapter-pg": "^7.5.0",
+     "@prisma/client": "^7.5.0",
+-    "pg": "^8.20.0"
++    "bcryptjs": "^3.0.3",
++    "class-transformer": "^0.5.0",
++    "class-validator": "^0.14.0",
++    "cookie-parser": "^1.4.7",
++    "jsonwebtoken": "^9.0.3",
++    "pg": "^8.20.0",
++    "reflect-metadata": "^0.2.0",
++    "rxjs": "^7.8.0"
+   },
+   "devDependencies": {
+     "@nestjs/cli": "^11.0.0",
+     "@nestjs/schematics": "^11.0.0",
+     "@nestjs/testing": "^11.0.0",
+     "@pos-sdd/config": "workspace:*",
++    "@swc/cli": "^0.4.0",
++    "@swc/core": "^1.0.0",
++    "@types/bcryptjs": "^3.0.0",
++    "@types/cookie-parser": "^1.4.10",
+     "@types/express": "^5.0.0",
++    "@types/jsonwebtoken": "^9.0.10",
+     "@types/node": "^24.0.0",
+     "@typescript-eslint/eslint-plugin": "^8.0.0",
+     "@typescript-eslint/parser": "^8.0.0",
+     "eslint": "^8.0.0",
+     "typescript": "^6.0.0",
+-    "vitest": "^2.0.0",
+-    "@swc/cli": "^0.4.0",
+-    "@swc/core": "^1.0.0",
+-    "unplugin-swc": "^1.0.0"
++    "unplugin-swc": "^1.0.0",
++    "vitest": "^2.0.0"
+   }
+ }
+diff --git a/apps/api/src/app.module.ts b/apps/api/src/app.module.ts
+index 0648a02..a804d4f 100644
+--- a/apps/api/src/app.module.ts
++++ b/apps/api/src/app.module.ts
+@@ -1,14 +1,25 @@
+ import { Module } from '@nestjs/common';
+ import { ConfigModule } from '@nestjs/config';
+-import { DatabaseModule } from './modules/database/database.module';
++import { DatabaseModule } from './modules/database/database.module.js';
++import { AuthNestModule } from './modules/auth/auth.module.js';
++import { resolve } from 'path';
++
++// Resolve .env from monorepo root (2 levels up from apps/api/)
++const rootDir = resolve(__dirname, '../../..');
+ 
+ @Module({
+   imports: [
+     ConfigModule.forRoot({
+       isGlobal: true,
+-      envFilePath: ['.env', '.env.local'],
++      envFilePath: [
++        resolve(rootDir, '.env.local'),
++        resolve(rootDir, '.env'),
++        '.env.local',
++        '.env',
++      ],
+     }),
+     DatabaseModule,
++    AuthNestModule,
+   ],
+   controllers: [],
+   providers: [],
+diff --git a/apps/api/src/main.ts b/apps/api/src/main.ts
+index 9b2d868..f68d7e5 100644
+--- a/apps/api/src/main.ts
++++ b/apps/api/src/main.ts
+@@ -1,12 +1,14 @@
+ import { NestFactory } from '@nestjs/core';
+ import { ValidationPipe } from '@nestjs/common';
+-import { AppModule } from './app.module';
++import cookieParser from 'cookie-parser';
++import { AppModule } from './app.module.js';
+ 
+ async function bootstrap() {
+   const app = await NestFactory.create(AppModule);
++  app.use(cookieParser());
+ 
+   app.setGlobalPrefix('api/v1');
+-  app.enableCors({ origin: process.env['WEB_URL'] || 'http://localhost:3000' });
++  app.enableCors({ origin: process.env['WEB_URL'] || 'http://localhost:3000', credentials: true });
+   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
+ 
+   const port = parseInt(process.env['API_PORT'] ?? '3001', 10);
+diff --git a/apps/api/tsconfig.json b/apps/api/tsconfig.json
+index 210607f..bbfd80d 100644
+--- a/apps/api/tsconfig.json
++++ b/apps/api/tsconfig.json
+@@ -2,6 +2,7 @@
+   "extends": "@pos-sdd/config/typescript/nestjs",
+   "compilerOptions": {
+     "baseUrl": ".",
++    "outDir": "./dist",
+     "paths": {
+       "@/*": ["./src/*"]
+     }
+diff --git a/apps/web/app/(auth)/layout.tsx b/apps/web/app/(auth)/layout.tsx
+index ee68eed..653f15c 100644
+--- a/apps/web/app/(auth)/layout.tsx
++++ b/apps/web/app/(auth)/layout.tsx
+@@ -3,5 +3,17 @@ export default function AuthLayout({
+ }: {
+   children: React.ReactNode;
+ }) {
+-  return <div className="auth-layout">{children}</div>;
++  return (
++    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100">
++      <div className="w-full max-w-md">
++        <div className="text-center mb-8">
++          <h1 className="text-3xl font-bold text-amber-900">POS Modern Bistro</h1>
++          <p className="text-amber-700 mt-2">Hệ thống quản lý nhà hàng</p>
++        </div>
++        <div className="bg-white rounded-2xl shadow-xl p-8 backdrop-blur-sm">
++          {children}
++        </div>
++      </div>
++    </div>
++  );
+ }
+diff --git a/apps/web/app/(auth)/login/page.tsx b/apps/web/app/(auth)/login/page.tsx
+index 1a0d861..b0fe2c4 100644
+--- a/apps/web/app/(auth)/login/page.tsx
++++ b/apps/web/app/(auth)/login/page.tsx
+@@ -1,8 +1,106 @@
++'use client';
++
++import { useState } from 'react';
++import { useRouter } from 'next/navigation';
++import { authClient } from '../../../lib/auth-client';
++
+ export default function LoginPage() {
++  const router = useRouter();
++  const [email, setEmail] = useState('');
++  const [password, setPassword] = useState('');
++  const [tenantId, setTenantId] = useState(process.env['NEXT_PUBLIC_TENANT_ID'] || '');
++  const [error, setError] = useState('');
++  const [loading, setLoading] = useState(false);
++
++  async function handleSubmit(e: React.FormEvent) {
++    e.preventDefault();
++    setError('');
++    setLoading(true);
++
++    try {
++      await authClient.signIn(email, password, tenantId);
++      router.push('/dashboard');
++    } catch (err: unknown) {
++      const e = err as { message?: string };
++      setError(e.message || 'Đăng nhập thất bại');
++    } finally {
++      setLoading(false);
++    }
++  }
++
+   return (
+     <div>
+-      <h2>Đăng nhập</h2>
+-      <p>Trang đăng nhập - sẽ được implement ở Story 1.3</p>
++      <h2 className="text-2xl font-semibold text-gray-900 mb-6">Đăng nhập</h2>
++
++      {error && (
++        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
++          {error}
++        </div>
++      )}
++
++      <form onSubmit={handleSubmit} className="space-y-4">
++        {!process.env['NEXT_PUBLIC_TENANT_ID'] && (
++          <div>
++            <label htmlFor="tenantId" className="block text-sm font-medium text-gray-700 mb-1">
++              Tenant ID
++            </label>
++            <input
++              id="tenantId"
++              type="text"
++              value={tenantId}
++              onChange={(e) => setTenantId(e.target.value)}
++              required
++              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition"
++              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
++            />
++          </div>
++        )}
++
++        <div>
++          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
++            Email
++          </label>
++          <input
++            id="email"
++            type="email"
++            value={email}
++            onChange={(e) => setEmail(e.target.value)}
++            required
++            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition"
++            placeholder="admin@pos-sdd.local"
++          />
++        </div>
++
++        <div>
++          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
++            Mật khẩu
++          </label>
++          <input
++            id="password"
++            type="password"
++            value={password}
++            onChange={(e) => setPassword(e.target.value)}
++            required
++            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition"
++            placeholder="••••••••"
++          />
++        </div>
++
++        <button
++          type="submit"
++          disabled={loading}
++          className="w-full py-3 px-4 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-medium rounded-xl transition min-h-[44px]"
++        >
++          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
++        </button>
++      </form>
++
++      <p className="mt-4 text-center text-sm text-gray-500">
++        Dành cho POS?{' '}
++        <a href="/pin" className="text-amber-600 hover:text-amber-700 font-medium">
++          Đăng nhập bằng PIN
++        </a>
++      </p>
+     </div>
+   );
+ }
+diff --git a/apps/web/package.json b/apps/web/package.json
+index e69090e..422e96e 100644
+--- a/apps/web/package.json
++++ b/apps/web/package.json
+@@ -11,24 +11,24 @@
+     "test": "vitest run"
+   },
+   "dependencies": {
+-    "next": "^16.0.0",
+-    "react": "^19.0.0",
+-    "react-dom": "^19.0.0",
++    "@pos-sdd/database": "workspace:*",
+     "@pos-sdd/shared": "workspace:*",
+     "@pos-sdd/ui": "workspace:*",
+-    "@pos-sdd/database": "workspace:*",
+     "@prisma/adapter-pg": "^7.5.0",
+     "@prisma/client": "^7.5.0",
+-    "pg": "^8.20.0"
++    "next": "^16.0.0",
++    "pg": "^8.20.0",
++    "react": "^19.0.0",
++    "react-dom": "^19.0.0"
+   },
+   "devDependencies": {
+     "@pos-sdd/config": "workspace:*",
+     "@types/node": "^24.0.0",
+     "@types/react": "^19.0.0",
+     "@types/react-dom": "^19.0.0",
+-    "typescript": "^6.0.0",
+     "eslint": "^9.0.0",
+     "eslint-config-next": "^16.0.0",
++    "typescript": "^6.0.0",
+     "vitest": "^2.0.0"
+   }
+ }
+diff --git a/packages/database/package.json b/packages/database/package.json
+index 910c66e..348325e 100644
+--- a/packages/database/package.json
++++ b/packages/database/package.json
+@@ -3,13 +3,17 @@
+   "version": "0.1.0",
+   "private": true,
+   "description": "Database package with Prisma client for pos-sdd monorepo",
+-  "main": "./src/index.ts",
+-  "types": "./src/index.ts",
++  "main": "./dist/index.js",
++  "types": "./dist/index.d.ts",
+   "exports": {
+-    ".": "./src/index.ts"
++    ".": {
++      "import": "./dist/index.js",
++      "require": "./dist/index.js",
++      "types": "./dist/index.d.ts"
++    }
+   },
+   "scripts": {
+-    "build": "tsc --noEmit",
++    "build": "tsc",
+     "lint": "eslint src --ext .ts",
+     "type-check": "tsc --noEmit",
+     "test": "vitest run --config vitest.config.ts",
+diff --git a/packages/database/prisma/schema.prisma b/packages/database/prisma/schema.prisma
+index cbaaa22..691d7fc 100644
+--- a/packages/database/prisma/schema.prisma
++++ b/packages/database/prisma/schema.prisma
+@@ -67,26 +67,79 @@ model Store {
+ }
+ 
+ model User {
+-  id            String   @id @db.Uuid
++  id            String   @id
+   tenant_id     String   @db.Uuid
+   email         String
++  emailVerified Boolean  @default(false) @map("email_verified")
+   name          String
++  image         String?
+   pin_hash      String?
+   password_hash String?
+   is_active     Boolean  @default(true)
+-  created_at    DateTime @default(now())
+-  updated_at    DateTime @updatedAt
++  createdAt     DateTime @default(now()) @map("created_at")
++  updatedAt     DateTime @updatedAt @map("updated_at")
+ 
+   tenant           Tenant                @relation(fields: [tenant_id], references: [id])
+   user_roles       UserRole[]
+   store_assignments UserStoreAssignment[]
+   audit_logs       AuditLog[]
++  accounts         Account[]
++  sessions         Session[]
+ 
+   @@unique([tenant_id, email])
+   @@index([tenant_id])
+   @@map("users")
+ }
+ 
++model Account {
++  id                    String    @id
++  userId                String    @map("user_id")
++  accountId             String    @map("account_id")
++  providerId            String    @map("provider_id")
++  accessToken           String?   @map("access_token")
++  refreshToken          String?   @map("refresh_token")
++  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
++  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
++  scope                 String?
++  idToken               String?   @map("id_token")
++  password              String?
++  createdAt             DateTime  @default(now()) @map("created_at")
++  updatedAt             DateTime  @updatedAt @map("updated_at")
++
++  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
++
++  @@index([userId])
++  @@map("accounts")
++}
++
++model Session {
++  id        String   @id
++  userId    String   @map("user_id")
++  token     String   @unique
++  ipAddress String?  @map("ip_address")
++  userAgent String?  @map("user_agent")
++  expiresAt DateTime @map("expires_at")
++  createdAt DateTime @default(now()) @map("created_at")
++  updatedAt DateTime @updatedAt @map("updated_at")
++
++  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
++
++  @@index([userId])
++  @@index([token])
++  @@map("sessions")
++}
++
++model Verification {
++  id         String   @id
++  identifier String
++  value      String
++  expiresAt  DateTime @map("expires_at")
++  createdAt  DateTime @default(now()) @map("created_at")
++  updatedAt  DateTime @updatedAt @map("updated_at")
++
++  @@map("verifications")
++}
++
+ model Role {
+   id          String   @id @db.Uuid
+   tenant_id   String   @db.Uuid
+@@ -106,7 +159,7 @@ model Role {
+ 
+ model UserRole {
+   id      String @id @db.Uuid
+-  user_id String @db.Uuid
++  user_id String
+   role_id String @db.Uuid
+ 
+   user User @relation(fields: [user_id], references: [id])
+@@ -118,7 +171,7 @@ model UserRole {
+ 
+ model UserStoreAssignment {
+   id         String         @id @db.Uuid
+-  user_id    String         @db.Uuid
++  user_id    String
+   store_id   String         @db.Uuid
+   scope_type StoreScopeType @default(SINGLE_STORE)
+ 
+@@ -155,7 +208,7 @@ model AuditLog {
+   id          String      @id @db.Uuid
+   tenant_id   String      @db.Uuid
+   store_id    String?     @db.Uuid
+-  user_id     String      @db.Uuid
++  user_id     String
+   action      AuditAction
+   resource    String
+   resource_id String?
+diff --git a/packages/database/prisma/seed.ts b/packages/database/prisma/seed.ts
+index 456e7a2..0daf646 100644
+--- a/packages/database/prisma/seed.ts
++++ b/packages/database/prisma/seed.ts
+@@ -1,3 +1,11 @@
++import { config } from 'dotenv';
++import { resolve } from 'path';
++import { fileURLToPath } from 'url';
++
++const __dirname = resolve(fileURLToPath(import.meta.url), '..');
++config({ path: resolve(__dirname, '../../../.env') });
++config({ path: resolve(__dirname, '../.env') });
++
+ import { PrismaClient } from '@prisma/client';
+ import { createPrismaClientOptions } from '../src/index.js';
+ import { hashSync } from 'bcryptjs';
+@@ -222,6 +230,24 @@ async function main() {
+   });
+   console.log(`✅ Admin user assigned system_admin role`);
+ 
++  // === CUSTOM AUTH ACCOUNT RECORD ===
++  // Tạo Account record cho admin user (credential provider)
++  // Custom AuthService lưu password hash trong Account.password
++  await prisma.account.upsert({
++    where: {
++      id: '01900000-0000-7000-8000-000000000401',
++    },
++    update: {},
++    create: {
++      id: '01900000-0000-7000-8000-000000000401',
++      user_id: adminUser.id,
++      account_id: adminUser.email,       // Provider's user ID = email
++      provider_id: 'credential',          // Email/password provider
++      password: passwordHash,            // Custom Auth lưu password hash trong Account.password
++    },
++  });
++  console.log(`✅ Custom Auth Account record created for admin user`);
++
+   console.log('\n🎉 Seed completed successfully!');
+ }
+ 
+diff --git a/packages/database/src/index.ts b/packages/database/src/index.ts
+index 6506819..f1ae191 100644
+--- a/packages/database/src/index.ts
++++ b/packages/database/src/index.ts
+@@ -1,6 +1,8 @@
+ import { PrismaClient } from '@prisma/client';
+ import { PrismaPg } from '@prisma/adapter-pg';
+ 
++export type { SessionWithUser, AccountWithUser } from './auth.js';
++
+ export { PrismaClient } from '@prisma/client';
+ export type { Prisma } from '@prisma/client';
+ export { createTenantPrismaClient } from './middleware/tenant-isolation.js';
+diff --git a/packages/shared/package.json b/packages/shared/package.json
+index f258afa..78c8794 100644
+--- a/packages/shared/package.json
++++ b/packages/shared/package.json
+@@ -43,11 +43,13 @@
+   },
+   "devDependencies": {
+     "@pos-sdd/config": "workspace:*",
++    "@types/bcryptjs": "^3.0.0",
+     "tsup": "^8.0.0",
+     "typescript": "^6.0.0",
+     "vitest": "^2.0.0"
+   },
+   "dependencies": {
++    "bcryptjs": "^3.0.3",
+     "uuidv7": "^1.2.1"
+   }
+ }
+diff --git a/packages/shared/src/index.ts b/packages/shared/src/index.ts
+index 9fe3419..ebdfea8 100644
+--- a/packages/shared/src/index.ts
++++ b/packages/shared/src/index.ts
+@@ -3,3 +3,4 @@ export * from './types/index.js';
+ export * from './constants/index.js';
+ export * from './validators/index.js';
+ export * from './utils/index.js';
++export * from './auth/index.js';
+diff --git a/.story-1-3-diff.txt b/.story-1-3-diff.txt
+new file mode 100644
+index 0000000..85eb0fd
+--- /dev/null
++++ b/.story-1-3-diff.txt
+@@ -0,0 +1,529 @@
++diff --git a/.env.example b/.env.example
++index 7dcf692..2e4384d 100644
++--- a/.env.example
+++++ b/.env.example
++@@ -12,8 +12,10 @@ WEB_PORT=3000
++ NEXT_PUBLIC_API_URL="http://localhost:3001"
++ WEB_URL="http://localhost:3000"
++ 
++-# Auth (sẽ dùng ở Story 1.3)
++-BETTER_AUTH_SECRET="change-me-in-production"
+++# Custom Auth (Story 1.3)
+++AUTH_JWT_SECRET="change-me-in-production-must-be-at-least-32-chars"
+++AUTH_URL="http://localhost:3001"
+++SESSION_EXPIRES_IN="7d"
++ 
++ # Turborepo Remote Cache (optional for local dev)
++ TURBO_TOKEN=""
++diff --git a/apps/api/package.json b/apps/api/package.json
++index 8a4748c..bb00296 100644
++--- a/apps/api/package.json
+++++ b/apps/api/package.json
++@@ -16,33 +16,39 @@
++   },
++   "dependencies": {
++     "@nestjs/common": "^11.0.0",
+++    "@nestjs/config": "^4.0.0",
++     "@nestjs/core": "^11.0.0",
++     "@nestjs/platform-express": "^11.0.0",
++-    "@nestjs/config": "^4.0.0",
++-    "reflect-metadata": "^0.2.0",
++-    "rxjs": "^7.8.0",
++-    "class-validator": "^0.14.0",
++-    "class-transformer": "^0.5.0",
++-    "@pos-sdd/shared": "workspace:*",
++     "@pos-sdd/database": "workspace:*",
+++    "@pos-sdd/shared": "workspace:*",
++     "@prisma/adapter-pg": "^7.5.0",
++     "@prisma/client": "^7.5.0",
++-    "pg": "^8.20.0"
+++    "bcryptjs": "^3.0.3",
+++    "class-transformer": "^0.5.0",
+++    "class-validator": "^0.14.0",
+++    "cookie-parser": "^1.4.7",
+++    "jsonwebtoken": "^9.0.3",
+++    "pg": "^8.20.0",
+++    "reflect-metadata": "^0.2.0",
+++    "rxjs": "^7.8.0"
++   },
++   "devDependencies": {
++     "@nestjs/cli": "^11.0.0",
++     "@nestjs/schematics": "^11.0.0",
++     "@nestjs/testing": "^11.0.0",
++     "@pos-sdd/config": "workspace:*",
+++    "@swc/cli": "^0.4.0",
+++    "@swc/core": "^1.0.0",
+++    "@types/bcryptjs": "^3.0.0",
+++    "@types/cookie-parser": "^1.4.10",
++     "@types/express": "^5.0.0",
+++    "@types/jsonwebtoken": "^9.0.10",
++     "@types/node": "^24.0.0",
++     "@typescript-eslint/eslint-plugin": "^8.0.0",
++     "@typescript-eslint/parser": "^8.0.0",
++     "eslint": "^8.0.0",
++     "typescript": "^6.0.0",
++-    "vitest": "^2.0.0",
++-    "@swc/cli": "^0.4.0",
++-    "@swc/core": "^1.0.0",
++-    "unplugin-swc": "^1.0.0"
+++    "unplugin-swc": "^1.0.0",
+++    "vitest": "^2.0.0"
++   }
++ }
++diff --git a/apps/api/src/app.module.ts b/apps/api/src/app.module.ts
++index 0648a02..a804d4f 100644
++--- a/apps/api/src/app.module.ts
+++++ b/apps/api/src/app.module.ts
++@@ -1,14 +1,25 @@
++ import { Module } from '@nestjs/common';
++ import { ConfigModule } from '@nestjs/config';
++-import { DatabaseModule } from './modules/database/database.module';
+++import { DatabaseModule } from './modules/database/database.module.js';
+++import { AuthNestModule } from './modules/auth/auth.module.js';
+++import { resolve } from 'path';
+++
+++// Resolve .env from monorepo root (2 levels up from apps/api/)
+++const rootDir = resolve(__dirname, '../../..');
++ 
++ @Module({
++   imports: [
++     ConfigModule.forRoot({
++       isGlobal: true,
++-      envFilePath: ['.env', '.env.local'],
+++      envFilePath: [
+++        resolve(rootDir, '.env.local'),
+++        resolve(rootDir, '.env'),
+++        '.env.local',
+++        '.env',
+++      ],
++     }),
++     DatabaseModule,
+++    AuthNestModule,
++   ],
++   controllers: [],
++   providers: [],
++diff --git a/apps/api/src/main.ts b/apps/api/src/main.ts
++index 9b2d868..f68d7e5 100644
++--- a/apps/api/src/main.ts
+++++ b/apps/api/src/main.ts
++@@ -1,12 +1,14 @@
++ import { NestFactory } from '@nestjs/core';
++ import { ValidationPipe } from '@nestjs/common';
++-import { AppModule } from './app.module';
+++import cookieParser from 'cookie-parser';
+++import { AppModule } from './app.module.js';
++ 
++ async function bootstrap() {
++   const app = await NestFactory.create(AppModule);
+++  app.use(cookieParser());
++ 
++   app.setGlobalPrefix('api/v1');
++-  app.enableCors({ origin: process.env['WEB_URL'] || 'http://localhost:3000' });
+++  app.enableCors({ origin: process.env['WEB_URL'] || 'http://localhost:3000', credentials: true });
++   app.useGlobalPipes(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }));
++ 
++   const port = parseInt(process.env['API_PORT'] ?? '3001', 10);
++diff --git a/apps/api/tsconfig.json b/apps/api/tsconfig.json
++index 210607f..bbfd80d 100644
++--- a/apps/api/tsconfig.json
+++++ b/apps/api/tsconfig.json
++@@ -2,6 +2,7 @@
++   "extends": "@pos-sdd/config/typescript/nestjs",
++   "compilerOptions": {
++     "baseUrl": ".",
+++    "outDir": "./dist",
++     "paths": {
++       "@/*": ["./src/*"]
++     }
++diff --git a/apps/web/app/(auth)/layout.tsx b/apps/web/app/(auth)/layout.tsx
++index ee68eed..653f15c 100644
++--- a/apps/web/app/(auth)/layout.tsx
+++++ b/apps/web/app/(auth)/layout.tsx
++@@ -3,5 +3,17 @@ export default function AuthLayout({
++ }: {
++   children: React.ReactNode;
++ }) {
++-  return <div className="auth-layout">{children}</div>;
+++  return (
+++    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-amber-50 to-orange-100">
+++      <div className="w-full max-w-md">
+++        <div className="text-center mb-8">
+++          <h1 className="text-3xl font-bold text-amber-900">POS Modern Bistro</h1>
+++          <p className="text-amber-700 mt-2">Hệ thống quản lý nhà hàng</p>
+++        </div>
+++        <div className="bg-white rounded-2xl shadow-xl p-8 backdrop-blur-sm">
+++          {children}
+++        </div>
+++      </div>
+++    </div>
+++  );
++ }
++diff --git a/apps/web/app/(auth)/login/page.tsx b/apps/web/app/(auth)/login/page.tsx
++index 1a0d861..b0fe2c4 100644
++--- a/apps/web/app/(auth)/login/page.tsx
+++++ b/apps/web/app/(auth)/login/page.tsx
++@@ -1,8 +1,106 @@
+++'use client';
+++
+++import { useState } from 'react';
+++import { useRouter } from 'next/navigation';
+++import { authClient } from '../../../lib/auth-client';
+++
++ export default function LoginPage() {
+++  const router = useRouter();
+++  const [email, setEmail] = useState('');
+++  const [password, setPassword] = useState('');
+++  const [tenantId, setTenantId] = useState(process.env['NEXT_PUBLIC_TENANT_ID'] || '');
+++  const [error, setError] = useState('');
+++  const [loading, setLoading] = useState(false);
+++
+++  async function handleSubmit(e: React.FormEvent) {
+++    e.preventDefault();
+++    setError('');
+++    setLoading(true);
+++
+++    try {
+++      await authClient.signIn(email, password, tenantId);
+++      router.push('/dashboard');
+++    } catch (err: unknown) {
+++      const e = err as { message?: string };
+++      setError(e.message || 'Đăng nhập thất bại');
+++    } finally {
+++      setLoading(false);
+++    }
+++  }
+++
++   return (
++     <div>
++-      <h2>Đăng nhập</h2>
++-      <p>Trang đăng nhập - sẽ được implement ở Story 1.3</p>
+++      <h2 className="text-2xl font-semibold text-gray-900 mb-6">Đăng nhập</h2>
+++
+++      {error && (
+++        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
+++          {error}
+++        </div>
+++      )}
+++
+++      <form onSubmit={handleSubmit} className="space-y-4">
+++        {!process.env['NEXT_PUBLIC_TENANT_ID'] && (
+++          <div>
+++            <label htmlFor="tenantId" className="block text-sm font-medium text-gray-700 mb-1">
+++              Tenant ID
+++            </label>
+++            <input
+++              id="tenantId"
+++              type="text"
+++              value={tenantId}
+++              onChange={(e) => setTenantId(e.target.value)}
+++              required
+++              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition"
+++              placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+++            />
+++          </div>
+++        )}
+++
+++        <div>
+++          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+++            Email
+++          </label>
+++          <input
+++            id="email"
+++            type="email"
+++            value={email}
+++            onChange={(e) => setEmail(e.target.value)}
+++            required
+++            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition"
+++            placeholder="admin@pos-sdd.local"
+++          />
+++        </div>
+++
+++        <div>
+++          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+++            Mật khẩu
+++          </label>
+++          <input
+++            id="password"
+++            type="password"
+++            value={password}
+++            onChange={(e) => setPassword(e.target.value)}
+++            required
+++            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition"
+++            placeholder="••••••••"
+++          />
+++        </div>
+++
+++        <button
+++          type="submit"
+++          disabled={loading}
+++          className="w-full py-3 px-4 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-medium rounded-xl transition min-h-[44px]"
+++        >
+++          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
+++        </button>
+++      </form>
+++
+++      <p className="mt-4 text-center text-sm text-gray-500">
+++        Dành cho POS?{' '}
+++        <a href="/pin" className="text-amber-600 hover:text-amber-700 font-medium">
+++          Đăng nhập bằng PIN
+++        </a>
+++      </p>
++     </div>
++   );
++ }
++diff --git a/apps/web/package.json b/apps/web/package.json
++index e69090e..422e96e 100644
++--- a/apps/web/package.json
+++++ b/apps/web/package.json
++@@ -11,24 +11,24 @@
++     "test": "vitest run"
++   },
++   "dependencies": {
++-    "next": "^16.0.0",
++-    "react": "^19.0.0",
++-    "react-dom": "^19.0.0",
+++    "@pos-sdd/database": "workspace:*",
++     "@pos-sdd/shared": "workspace:*",
++     "@pos-sdd/ui": "workspace:*",
++-    "@pos-sdd/database": "workspace:*",
++     "@prisma/adapter-pg": "^7.5.0",
++     "@prisma/client": "^7.5.0",
++-    "pg": "^8.20.0"
+++    "next": "^16.0.0",
+++    "pg": "^8.20.0",
+++    "react": "^19.0.0",
+++    "react-dom": "^19.0.0"
++   },
++   "devDependencies": {
++     "@pos-sdd/config": "workspace:*",
++     "@types/node": "^24.0.0",
++     "@types/react": "^19.0.0",
++     "@types/react-dom": "^19.0.0",
++-    "typescript": "^6.0.0",
++     "eslint": "^9.0.0",
++     "eslint-config-next": "^16.0.0",
+++    "typescript": "^6.0.0",
++     "vitest": "^2.0.0"
++   }
++ }
++diff --git a/packages/database/package.json b/packages/database/package.json
++index 910c66e..348325e 100644
++--- a/packages/database/package.json
+++++ b/packages/database/package.json
++@@ -3,13 +3,17 @@
++   "version": "0.1.0",
++   "private": true,
++   "description": "Database package with Prisma client for pos-sdd monorepo",
++-  "main": "./src/index.ts",
++-  "types": "./src/index.ts",
+++  "main": "./dist/index.js",
+++  "types": "./dist/index.d.ts",
++   "exports": {
++-    ".": "./src/index.ts"
+++    ".": {
+++      "import": "./dist/index.js",
+++      "require": "./dist/index.js",
+++      "types": "./dist/index.d.ts"
+++    }
++   },
++   "scripts": {
++-    "build": "tsc --noEmit",
+++    "build": "tsc",
++     "lint": "eslint src --ext .ts",
++     "type-check": "tsc --noEmit",
++     "test": "vitest run --config vitest.config.ts",
++diff --git a/packages/database/prisma/schema.prisma b/packages/database/prisma/schema.prisma
++index cbaaa22..691d7fc 100644
++--- a/packages/database/prisma/schema.prisma
+++++ b/packages/database/prisma/schema.prisma
++@@ -67,26 +67,79 @@ model Store {
++ }
++ 
++ model User {
++-  id            String   @id @db.Uuid
+++  id            String   @id
++   tenant_id     String   @db.Uuid
++   email         String
+++  emailVerified Boolean  @default(false) @map("email_verified")
++   name          String
+++  image         String?
++   pin_hash      String?
++   password_hash String?
++   is_active     Boolean  @default(true)
++-  created_at    DateTime @default(now())
++-  updated_at    DateTime @updatedAt
+++  createdAt     DateTime @default(now()) @map("created_at")
+++  updatedAt     DateTime @updatedAt @map("updated_at")
++ 
++   tenant           Tenant                @relation(fields: [tenant_id], references: [id])
++   user_roles       UserRole[]
++   store_assignments UserStoreAssignment[]
++   audit_logs       AuditLog[]
+++  accounts         Account[]
+++  sessions         Session[]
++ 
++   @@unique([tenant_id, email])
++   @@index([tenant_id])
++   @@map("users")
++ }
++ 
+++model Account {
+++  id                    String    @id
+++  userId                String    @map("user_id")
+++  accountId             String    @map("account_id")
+++  providerId            String    @map("provider_id")
+++  accessToken           String?   @map("access_token")
+++  refreshToken          String?   @map("refresh_token")
+++  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+++  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+++  scope                 String?
+++  idToken               String?   @map("id_token")
+++  password              String?
+++  createdAt             DateTime  @default(now()) @map("created_at")
+++  updatedAt             DateTime  @updatedAt @map("updated_at")
+++
+++  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+++
+++  @@index([userId])
+++  @@map("accounts")
+++}
+++
+++model Session {
+++  id        String   @id
+++  userId    String   @map("user_id")
+++  token     String   @unique
+++  ipAddress String?  @map("ip_address")
+++  userAgent String?  @map("user_agent")
+++  expiresAt DateTime @map("expires_at")
+++  createdAt DateTime @default(now()) @map("created_at")
+++  updatedAt DateTime @updatedAt @map("updated_at")
+++
+++  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+++
+++  @@index([userId])
+++  @@index([token])
+++  @@map("sessions")
+++}
+++
+++model Verification {
+++  id         String   @id
+++  identifier String
+++  value      String
+++  expiresAt  DateTime @map("expires_at")
+++  createdAt  DateTime @default(now()) @map("created_at")
+++  updatedAt  DateTime @updatedAt @map("updated_at")
+++
+++  @@map("verifications")
+++}
+++
++ model Role {
++   id          String   @id @db.Uuid
++   tenant_id   String   @db.Uuid
++@@ -106,7 +159,7 @@ model Role {
++ 
++ model UserRole {
++   id      String @id @db.Uuid
++-  user_id String @db.Uuid
+++  user_id String
++   role_id String @db.Uuid
++ 
++   user User @relation(fields: [user_id], references: [id])
++@@ -118,7 +171,7 @@ model UserRole {
++ 
++ model UserStoreAssignment {
++   id         String         @id @db.Uuid
++-  user_id    String         @db.Uuid
+++  user_id    String
++   store_id   String         @db.Uuid
++   scope_type StoreScopeType @default(SINGLE_STORE)
++ 
++@@ -155,7 +208,7 @@ model AuditLog {
++   id          String      @id @db.Uuid
++   tenant_id   String      @db.Uuid
++   store_id    String?     @db.Uuid
++-  user_id     String      @db.Uuid
+++  user_id     String
++   action      AuditAction
++   resource    String
++   resource_id String?
++diff --git a/packages/database/prisma/seed.ts b/packages/database/prisma/seed.ts
++index 456e7a2..0daf646 100644
++--- a/packages/database/prisma/seed.ts
+++++ b/packages/database/prisma/seed.ts
++@@ -1,3 +1,11 @@
+++import { config } from 'dotenv';
+++import { resolve } from 'path';
+++import { fileURLToPath } from 'url';
+++
+++const __dirname = resolve(fileURLToPath(import.meta.url), '..');
+++config({ path: resolve(__dirname, '../../../.env') });
+++config({ path: resolve(__dirname, '../.env') });
+++
++ import { PrismaClient } from '@prisma/client';
++ import { createPrismaClientOptions } from '../src/index.js';
++ import { hashSync } from 'bcryptjs';
++@@ -222,6 +230,24 @@ async function main() {
++   });
++   console.log(`✅ Admin user assigned system_admin role`);
++ 
+++  // === CUSTOM AUTH ACCOUNT RECORD ===
+++  // Tạo Account record cho admin user (credential provider)
+++  // Custom AuthService lưu password hash trong Account.password
+++  await prisma.account.upsert({
+++    where: {
+++      id: '01900000-0000-7000-8000-000000000401',
+++    },
+++    update: {},
+++    create: {
+++      id: '01900000-0000-7000-8000-000000000401',
+++      user_id: adminUser.id,
+++      account_id: adminUser.email,       // Provider's user ID = email
+++      provider_id: 'credential',          // Email/password provider
+++      password: passwordHash,            // Custom Auth lưu password hash trong Account.password
+++    },
+++  });
+++  console.log(`✅ Custom Auth Account record created for admin user`);
+++
++   console.log('\n🎉 Seed completed successfully!');
++ }
++ 
++diff --git a/packages/database/src/index.ts b/packages/database/src/index.ts
++index 6506819..f1ae191 100644
++--- a/packages/database/src/index.ts
+++++ b/packages/database/src/index.ts
++@@ -1,6 +1,8 @@
++ import { PrismaClient } from '@prisma/client';
++ import { PrismaPg } from '@prisma/adapter-pg';
++ 
+++export type { SessionWithUser, AccountWithUser } from './auth.js';
+++
++ export { PrismaClient } from '@prisma/client';
++ export type { Prisma } from '@prisma/client';
++ export { createTenantPrismaClient } from './middleware/tenant-isolation.js';
++diff --git a/packages/shared/package.json b/packages/shared/package.json
++index f258afa..78c8794 100644
++--- a/packages/shared/package.json
+++++ b/packages/shared/package.json
++@@ -43,11 +43,13 @@
++   },
++   "devDependencies": {
++     "@pos-sdd/config": "workspace:*",
+++    "@types/bcryptjs": "^3.0.0",
++     "tsup": "^8.0.0",
++     "typescript": "^6.0.0",
++     "vitest": "^2.0.0"
++   },
++   "dependencies": {
+++    "bcryptjs": "^3.0.3",
++     "uuidv7": "^1.2.1"
++   }
++ }
++diff --git a/packages/shared/src/index.ts b/packages/shared/src/index.ts
++index 9fe3419..ebdfea8 100644
++--- a/packages/shared/src/index.ts
+++++ b/packages/shared/src/index.ts
++@@ -3,3 +3,4 @@ export * from './types/index.js';
++ export * from './constants/index.js';
++ export * from './validators/index.js';
++ export * from './utils/index.js';
+++export * from './auth/index.js';
+diff --git a/apps/api/src/common/decorators/current-user.decorator.ts b/apps/api/src/common/decorators/current-user.decorator.ts
+new file mode 100644
+index 0000000..c6b6d4b
+--- /dev/null
++++ b/apps/api/src/common/decorators/current-user.decorator.ts
+@@ -0,0 +1,10 @@
++import { createParamDecorator, ExecutionContext } from '@nestjs/common';
++import type { Request } from 'express';
++import type { JwtPayload } from '../types/jwt-payload.js';
++
++export const CurrentUser = createParamDecorator(
++  (_data: unknown, ctx: ExecutionContext): JwtPayload | null => {
++    const request = ctx.switchToHttp().getRequest<Request & { user?: JwtPayload }>();
++    return request.user ?? null;
++  },
++);
+diff --git a/apps/api/src/common/guards/auth-mode.guard.spec.ts b/apps/api/src/common/guards/auth-mode.guard.spec.ts
+new file mode 100644
+index 0000000..4f1366d
+--- /dev/null
++++ b/apps/api/src/common/guards/auth-mode.guard.spec.ts
+@@ -0,0 +1,111 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
++import { AuthModeGuard } from './auth-mode.guard.js';
++import * as jwt from 'jsonwebtoken';
++
++vi.mock('jsonwebtoken', () => ({
++  default: {
++    verify: vi.fn(),
++  },
++  verify: vi.fn(),
++}));
++
++const SECRET = 'test-secret-key-for-testing-min-32-chars';
++const validPayload = {
++  userId: 'user-1',
++  tenantId: 'tenant-1',
++  roles: ['cashier'],
++  storeAssignments: [],
++  iat: 1000,
++  exp: 9999999999,
++};
++
++const mockSessionData = {
++  user: {
++    id: 'user-1',
++    tenant_id: 'tenant-1',
++    email: 'test@example.com',
++    name: 'Test',
++    is_active: true,
++    user_roles: [{ role: { name: 'cashier' } }],
++    store_assignments: [],
++  },
++};
++
++function makeContext(options: {
++  cookieToken?: string;
++  headers?: Record<string, string>;
++}): ExecutionContext {
++  const request: Record<string, unknown> = {
++    headers: options.headers ?? {},
++    cookies: options.cookieToken ? { session_token: options.cookieToken } : {},
++    user: undefined,
++  };
++
++  return {
++    switchToHttp: () => ({
++      getRequest: () => request,
++    }),
++  } as unknown as ExecutionContext;
++}
++
++describe('AuthModeGuard', () => {
++  let guard: AuthModeGuard;
++  let mockAuthService: { getSession: ReturnType<typeof vi.fn> };
++
++  beforeEach(() => {
++    process.env['AUTH_JWT_SECRET'] = SECRET;
++    mockAuthService = { getSession: vi.fn() };
++    guard = new AuthModeGuard(mockAuthService as never);
++    vi.clearAllMocks();
++  });
++
++  it('should allow access when session cookie is valid', async () => {
++    mockAuthService.getSession.mockResolvedValue(mockSessionData);
++
++    const ctx = makeContext({ cookieToken: 'valid-session-token' });
++    const result = await guard.canActivate(ctx);
++
++    expect(result).toBe(true);
++    const request = ctx.switchToHttp().getRequest() as Record<string, unknown>;
++    expect((request.user as { userId: string }).userId).toBe('user-1');
++  });
++
++  it('should fallback to JWT when session cookie is absent', async () => {
++    vi.mocked(jwt.verify).mockReturnValue(validPayload as unknown as jwt.JwtPayload);
++
++    const ctx = makeContext({ headers: { authorization: 'Bearer valid-token' } });
++    const result = await guard.canActivate(ctx);
++
++    expect(result).toBe(true);
++  });
++
++  it('should fallback to JWT when session is invalid', async () => {
++    mockAuthService.getSession.mockResolvedValue(null);
++    vi.mocked(jwt.verify).mockReturnValue(validPayload as unknown as jwt.JwtPayload);
++
++    const ctx = makeContext({
++      cookieToken: 'bad-session-token',
++      headers: { authorization: 'Bearer valid-token' },
++    });
++    const result = await guard.canActivate(ctx);
++
++    expect(result).toBe(true);
++  });
++
++  it('should throw UnauthorizedException when no session and no JWT', async () => {
++    mockAuthService.getSession.mockResolvedValue(null);
++
++    const ctx = makeContext({});
++    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
++  });
++
++  it('should throw UnauthorizedException when no session and invalid JWT', async () => {
++    vi.mocked(jwt.verify).mockImplementation(() => {
++      throw new jwt.JsonWebTokenError('invalid');
++    });
++
++    const ctx = makeContext({ headers: { authorization: 'Bearer bad-token' } });
++    await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException);
++  });
++});
+diff --git a/apps/api/src/common/guards/auth-mode.guard.ts b/apps/api/src/common/guards/auth-mode.guard.ts
+new file mode 100644
+index 0000000..3276451
+--- /dev/null
++++ b/apps/api/src/common/guards/auth-mode.guard.ts
+@@ -0,0 +1,56 @@
++import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
++import type { Request } from 'express';
++import type { UserRole, Role, UserStoreAssignment } from '@prisma/client';
++import * as jwt from 'jsonwebtoken';
++import type { JwtPayload } from '../types/jwt-payload.js';
++import { AuthService, SESSION_COOKIE_NAME } from '../../modules/auth/auth.service.js';
++
++/**
++ * Composite guard: kiểm tra session cookie (CustomSessionAuth) trước,
++ * fallback sang JWT Bearer token.
++ * Dùng cho các endpoints hỗ trợ cả Dashboard (session) và POS (JWT).
++ */
++@Injectable()
++export class AuthModeGuard implements CanActivate {
++  constructor(private readonly authService: AuthService) {}
++
++  async canActivate(context: ExecutionContext): Promise<boolean> {
++    const request = context.switchToHttp().getRequest<Request & { user?: JwtPayload }>();
++
++    // 1. Kiểm tra session cookie
++    const sessionToken = request.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
++    if (sessionToken) {
++      const session = await this.authService.getSession(sessionToken);
++      if (session) {
++        request.user = {
++          userId: session.user.id,
++          tenantId: session.user.tenant_id,
++          roles: session.user.user_roles.map((ur: UserRole & { role: Role }) => ur.role.name),
++          storeAssignments: session.user.store_assignments.map((sa: UserStoreAssignment) => ({
++            storeId: sa.store_id,
++            scopeType: sa.scope_type as 'SINGLE_STORE' | 'STORE_GROUP' | 'ALL_STORES',
++          })),
++        };
++        return true;
++      }
++    }
++
++    // 2. Fallback: kiểm tra JWT Bearer token
++    const authHeader = request.headers['authorization'];
++    if (authHeader?.startsWith('Bearer ')) {
++      const token = authHeader.slice(7);
++      const secret = process.env['AUTH_JWT_SECRET'];
++      if (!secret) throw new Error('AUTH_JWT_SECRET is not set');
++
++      try {
++        const payload = jwt.verify(token, secret) as JwtPayload;
++        request.user = payload;
++        return true;
++      } catch {
++        throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
++      }
++    }
++
++    throw new UnauthorizedException('Yêu cầu xác thực');
++  }
++}
+diff --git a/apps/api/src/common/guards/jwt-auth.guard.spec.ts b/apps/api/src/common/guards/jwt-auth.guard.spec.ts
+new file mode 100644
+index 0000000..e51c713
+--- /dev/null
++++ b/apps/api/src/common/guards/jwt-auth.guard.spec.ts
+@@ -0,0 +1,63 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import { ExecutionContext, UnauthorizedException } from '@nestjs/common';
++import { JwtAuthGuard } from './jwt-auth.guard.js';
++import * as jwt from 'jsonwebtoken';
++
++vi.mock('jsonwebtoken', () => ({
++  default: {
++    verify: vi.fn(),
++  },
++  verify: vi.fn(),
++}));
++
++const SECRET = 'test-secret-key-for-testing';
++
++function makeContext(headers: Record<string, string>): ExecutionContext {
++  return {
++    switchToHttp: () => ({
++      getRequest: () => ({ headers, user: undefined }),
++    }),
++  } as unknown as ExecutionContext;
++}
++
++describe('JwtAuthGuard', () => {
++  let guard: JwtAuthGuard;
++
++  beforeEach(() => {
++    process.env['AUTH_JWT_SECRET'] = SECRET;
++    guard = new JwtAuthGuard();
++    vi.clearAllMocks();
++  });
++
++  it('should allow access with valid JWT token', () => {
++    const payload = { userId: 'user-1', tenantId: 'tenant-1', roles: ['cashier'], storeAssignments: [], iat: 1000, exp: 9999999999 };
++    vi.mocked(jwt.verify).mockReturnValue(payload as unknown as jwt.JwtPayload);
++
++    const ctx = makeContext({ authorization: 'Bearer valid-token' });
++    expect(guard.canActivate(ctx)).toBe(true);
++  });
++
++  it('should throw UnauthorizedException when no Authorization header', () => {
++    const ctx = makeContext({});
++    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
++  });
++
++  it('should throw UnauthorizedException when token is expired', () => {
++    vi.mocked(jwt.verify).mockImplementation(() => { throw new jwt.TokenExpiredError('jwt expired', new Date()); });
++
++    const ctx = makeContext({ authorization: 'Bearer expired-token' });
++    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
++  });
++
++  it('should throw UnauthorizedException when token has invalid signature', () => {
++    vi.mocked(jwt.verify).mockImplementation(() => { throw new jwt.JsonWebTokenError('invalid signature'); });
++
++    const ctx = makeContext({ authorization: 'Bearer invalid-token' });
++    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
++  });
++
++  it('should throw UnauthorizedException when Authorization header is malformed', () => {
++    const ctx = makeContext({ authorization: 'Basic some-basic-token' });
++    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
++  });
++});
+diff --git a/apps/api/src/common/guards/jwt-auth.guard.ts b/apps/api/src/common/guards/jwt-auth.guard.ts
+new file mode 100644
+index 0000000..51c8305
+--- /dev/null
++++ b/apps/api/src/common/guards/jwt-auth.guard.ts
+@@ -0,0 +1,35 @@
++import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
++import type { Request } from 'express';
++import * as jwt from 'jsonwebtoken';
++import type { JwtPayload } from '../types/jwt-payload.js';
++
++@Injectable()
++export class JwtAuthGuard implements CanActivate {
++  canActivate(context: ExecutionContext): boolean {
++    const request = context.switchToHttp().getRequest<Request & { user?: JwtPayload }>();
++    const token = this._extractToken(request);
++
++    if (!token) {
++      throw new UnauthorizedException('Token không được cung cấp');
++    }
++
++    const secret = process.env['AUTH_JWT_SECRET'];
++    if (!secret) throw new Error('AUTH_JWT_SECRET is not set');
++
++    try {
++      const payload = jwt.verify(token, secret) as JwtPayload;
++      request.user = payload;
++      return true;
++    } catch {
++      throw new UnauthorizedException('Token không hợp lệ hoặc đã hết hạn');
++    }
++  }
++
++  private _extractToken(request: Request): string | null {
++    const authHeader = request.headers['authorization'];
++    if (!authHeader || !authHeader.startsWith('Bearer ')) {
++      return null;
++    }
++    return authHeader.slice(7);
++  }
++}
+diff --git a/apps/api/src/common/guards/session-auth.guard.spec.ts b/apps/api/src/common/guards/session-auth.guard.spec.ts
+new file mode 100644
+index 0000000..4f78e93
+--- /dev/null
++++ b/apps/api/src/common/guards/session-auth.guard.spec.ts
+@@ -0,0 +1,71 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import { UnauthorizedException } from '@nestjs/common';
++import { SessionAuthGuard } from './session-auth.guard.js';
++
++const mockSession = {
++  user: {
++    id: 'user-id-123',
++    tenant_id: 'tenant-id-abc',
++    email: 'test@example.com',
++    name: 'Test User',
++    is_active: true,
++    user_roles: [{ role: { name: 'cashier' } }],
++    store_assignments: [{ store_id: 'store-id-1', scope_type: 'SINGLE_STORE' }],
++  },
++};
++
++function makeContext(cookieToken?: string) {
++  const mockRequest = {
++    cookies: cookieToken ? { session_token: cookieToken } : {},
++    user: undefined as unknown,
++  };
++  const mockResponse = {
++    clearCookie: vi.fn(),
++  };
++  return {
++    switchToHttp: () => ({
++      getRequest: () => mockRequest,
++      getResponse: () => mockResponse,
++    }),
++    request: mockRequest,
++    response: mockResponse,
++  };
++}
++
++describe('SessionAuthGuard', () => {
++  let guard: SessionAuthGuard;
++  let mockAuthService: { getSession: ReturnType<typeof vi.fn> };
++
++  beforeEach(() => {
++    mockAuthService = { getSession: vi.fn() };
++    guard = new SessionAuthGuard(mockAuthService as never);
++  });
++
++  it('should pass and inject user for valid session cookie', async () => {
++    mockAuthService.getSession.mockResolvedValue(mockSession);
++    const ctx = makeContext('valid-token');
++
++    const result = await guard.canActivate(ctx as never);
++
++    expect(result).toBe(true);
++    expect(ctx.request.user).toMatchObject({
++      userId: 'user-id-123',
++      tenantId: 'tenant-id-abc',
++      roles: ['cashier'],
++    });
++  });
++
++  it('should throw UnauthorizedException when no cookie', async () => {
++    const ctx = makeContext();
++
++    await expect(guard.canActivate(ctx as never)).rejects.toThrow(UnauthorizedException);
++  });
++
++  it('should throw UnauthorizedException and clear cookie when session invalid/expired', async () => {
++    mockAuthService.getSession.mockResolvedValue(null);
++    const ctx = makeContext('expired-token');
++
++    await expect(guard.canActivate(ctx as never)).rejects.toThrow(UnauthorizedException);
++    expect(ctx.response.clearCookie).toHaveBeenCalled();
++  });
++});
+diff --git a/apps/api/src/common/guards/session-auth.guard.ts b/apps/api/src/common/guards/session-auth.guard.ts
+new file mode 100644
+index 0000000..877a667
+--- /dev/null
++++ b/apps/api/src/common/guards/session-auth.guard.ts
+@@ -0,0 +1,44 @@
++import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
++import type { Request, Response } from 'express';
++import type { UserRole, Role, UserStoreAssignment } from '@prisma/client';
++import { AuthService, SESSION_COOKIE_NAME } from '../../modules/auth/auth.service.js';
++
++/**
++ * SessionAuthGuard: đọc session_token từ cookie, query sessions table,
++ * inject user vào request.user nếu session hợp lệ.
++ */
++@Injectable()
++export class SessionAuthGuard implements CanActivate {
++  constructor(private readonly authService: AuthService) {}
++
++  async canActivate(context: ExecutionContext): Promise<boolean> {
++    const request = context.switchToHttp().getRequest<Request & { user?: unknown }>();
++    const response = context.switchToHttp().getResponse<Response>();
++
++    const token = request.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
++    if (!token) {
++      throw new UnauthorizedException('Yêu cầu xác thực');
++    }
++
++    const session = await this.authService.getSession(token);
++    if (!session) {
++      // Xóa cookie không hợp lệ
++      response.clearCookie(SESSION_COOKIE_NAME);
++      throw new UnauthorizedException('Session không hợp lệ hoặc đã hết hạn');
++    }
++
++    // Inject toàn bộ session vào request để controller có thể dùng
++    request.user = {
++      userId: session.user.id,
++      tenantId: session.user.tenant_id,
++      roles: session.user.user_roles.map((ur: UserRole & { role: Role }) => ur.role.name),
++      storeAssignments: session.user.store_assignments.map((sa: UserStoreAssignment) => ({
++        storeId: sa.store_id,
++        scopeType: sa.scope_type,
++      })),
++      sessionToken: token,
++    };
++
++    return true;
++  }
++}
+diff --git a/apps/api/src/common/types/jwt-payload.ts b/apps/api/src/common/types/jwt-payload.ts
+new file mode 100644
+index 0000000..84ee519
+--- /dev/null
++++ b/apps/api/src/common/types/jwt-payload.ts
+@@ -0,0 +1,13 @@
++export interface JwtPayload {
++  userId: string;
++  tenantId: string;
++  roles: string[];
++  storeAssignments: {
++    storeId: string;
++    scopeType: 'SINGLE_STORE' | 'STORE_GROUP' | 'ALL_STORES';
++  }[];
++  iat?: number;
++  exp?: number;
++  /** Chỉ có khi auth bằng session (không có với JWT) */
++  sessionToken?: string;
++}
+diff --git a/apps/api/src/modules/auth/auth.controller.ts b/apps/api/src/modules/auth/auth.controller.ts
+new file mode 100644
+index 0000000..bb1794e
+--- /dev/null
++++ b/apps/api/src/modules/auth/auth.controller.ts
+@@ -0,0 +1,152 @@
++import {
++  Controller,
++  Post,
++  Get,
++  Body,
++  UseGuards,
++  HttpCode,
++  HttpStatus,
++  Req,
++  Res,
++  UnauthorizedException,
++} from '@nestjs/common';
++import type { Request, Response } from 'express';
++import type { UserRole, Role, UserStoreAssignment } from '@prisma/client';
++import { AuthService, SESSION_COOKIE_NAME } from './auth.service.js';
++import { PinLoginDto } from './dto/pin-login.dto.js';
++import { SignUpDto } from './dto/sign-up.dto.js';
++import { SignInDto } from './dto/sign-in.dto.js';
++import { SetPinDto } from './dto/set-pin.dto.js';
++import { ResetPinDto } from './dto/reset-pin.dto.js';
++import type { PinLoginResponseDto } from './dto/pin-login-response.dto.js';
++import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
++import { AuthModeGuard } from '../../common/guards/auth-mode.guard.js';
++import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
++import type { JwtPayload } from '../../common/types/jwt-payload.js';
++
++const SESSION_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 ngày
++
++@Controller('auth')
++export class AuthController {
++  constructor(private readonly authService: AuthService) {}
++
++  // ──────────────── SIGN UP ────────────────
++  @Post('sign-up')
++  @HttpCode(HttpStatus.CREATED)
++  async signUp(
++    @Body() dto: SignUpDto,
++  ): Promise<{ id: string; email: string; name: string }> {
++    return this.authService.signUp(dto.email, dto.password, dto.name, dto.tenantId);
++  }
++
++  // ──────────────── SIGN IN ────────────────
++  @Post('sign-in')
++  @HttpCode(HttpStatus.OK)
++  async signIn(
++    @Body() dto: SignInDto,
++    @Req() req: Request,
++    @Res({ passthrough: true }) res: Response,
++  ): Promise<{ success: true }> {
++    const token = await this.authService.signIn(
++      dto.email,
++      dto.password,
++      dto.tenantId,
++      req.ip,
++      req.headers['user-agent'],
++    );
++
++    res.cookie(SESSION_COOKIE_NAME, token, {
++      httpOnly: true,
++      secure: process.env['NODE_ENV'] === 'production',
++      sameSite: 'lax',
++      maxAge: SESSION_MAX_AGE_MS,
++    });
++
++    return { success: true };
++  }
++
++  // ──────────────── GET SESSION ────────────────
++  @Get('session')
++  async getSession(
++    @Req() req: Request,
++    @Res({ passthrough: true }) res: Response,
++  ): Promise<{
++    user: {
++      id: string;
++      email: string;
++      name: string;
++      tenantId: string;
++      roles: string[];
++      storeAssignments: { storeId: string; scopeType: string }[];
++    };
++  }> {
++    const token = req.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
++    if (!token) {
++      throw new UnauthorizedException('Chưa đăng nhập');
++    }
++
++    const session = await this.authService.getSession(token);
++    if (!session) {
++      res.clearCookie(SESSION_COOKIE_NAME);
++      throw new UnauthorizedException('Session không hợp lệ hoặc đã hết hạn');
++    }
++
++    return {
++      user: {
++        id: session.user.id,
++        email: session.user.email,
++        name: session.user.name,
++        tenantId: session.user.tenant_id,
++        roles: session.user.user_roles.map((ur: UserRole & { role: Role }) => ur.role.name),
++        storeAssignments: session.user.store_assignments.map((sa: UserStoreAssignment) => ({
++          storeId: sa.store_id,
++          scopeType: sa.scope_type,
++        })),
++      },
++    };
++  }
++
++  // ──────────────── SIGN OUT ────────────────
++  @Post('sign-out')
++  @HttpCode(HttpStatus.OK)
++  async signOut(
++    @Req() req: Request,
++    @Res({ passthrough: true }) res: Response,
++  ): Promise<{ success: true }> {
++    const token = req.cookies?.[SESSION_COOKIE_NAME] as string | undefined;
++    if (token) {
++      await this.authService.signOut(token);
++    }
++    res.clearCookie(SESSION_COOKIE_NAME);
++    return { success: true };
++  }
++
++  // ──────────────── PIN LOGIN ────────────────
++  @Post('pin-login')
++  @HttpCode(HttpStatus.OK)
++  async pinLogin(@Body() dto: PinLoginDto): Promise<PinLoginResponseDto> {
++    return this.authService.pinLogin(dto.pin, dto.tenantSlug, dto.email);
++  }
++
++  // ──────────────── SET PIN ────────────────
++  @Post('set-pin')
++  @UseGuards(AuthModeGuard)
++  @HttpCode(HttpStatus.OK)
++  async setPin(
++    @Body() dto: SetPinDto,
++    @CurrentUser() user: JwtPayload,
++  ): Promise<{ success: true }> {
++    return this.authService.setPinForUser(user.userId, dto.pin, user.tenantId);
++  }
++
++  // ──────────────── RESET PIN (admin only) ────────────────
++  @Post('reset-pin')
++  @UseGuards(AuthModeGuard)
++  @HttpCode(HttpStatus.OK)
++  async resetPin(
++    @Body() dto: ResetPinDto,
++    @CurrentUser() user: JwtPayload,
++  ): Promise<{ success: true }> {
++    return this.authService.resetPinForUser(user.userId, user.tenantId, dto.userId, dto.newPin);
++  }
++}
+diff --git a/apps/api/src/modules/auth/auth.module.ts b/apps/api/src/modules/auth/auth.module.ts
+new file mode 100644
+index 0000000..3d66c50
+--- /dev/null
++++ b/apps/api/src/modules/auth/auth.module.ts
+@@ -0,0 +1,12 @@
++import { Module } from '@nestjs/common';
++import { AuthController } from './auth.controller.js';
++import { AuthService } from './auth.service.js';
++import { SessionAuthGuard } from '../../common/guards/session-auth.guard.js';
++import { AuthModeGuard } from '../../common/guards/auth-mode.guard.js';
++
++@Module({
++  controllers: [AuthController],
++  providers: [AuthService, SessionAuthGuard, AuthModeGuard],
++  exports: [AuthService, SessionAuthGuard, AuthModeGuard],
++})
++export class AuthNestModule {}
+diff --git a/apps/api/src/modules/auth/auth.service.spec.ts b/apps/api/src/modules/auth/auth.service.spec.ts
+new file mode 100644
+index 0000000..6f8fffd
+--- /dev/null
++++ b/apps/api/src/modules/auth/auth.service.spec.ts
+@@ -0,0 +1,364 @@
++import { describe, it, expect, vi, beforeEach } from 'vitest';
++import {
++  BadRequestException,
++  UnauthorizedException,
++  NotFoundException,
++  ForbiddenException,
++  ConflictException,
++} from '@nestjs/common';
++import { AuthService } from './auth.service.js';
++
++// Mock @pos-sdd/shared
++vi.mock('@pos-sdd/shared', () => ({
++  generateId: () => 'test-uuid-123',
++  hashPin: async (pin: string) => `hashed:${pin}`,
++  verifyPin: async (pin: string, hash: string) => hash === `hashed:${pin}`,
++}));
++
++// Mock bcryptjs
++vi.mock('bcryptjs', () => ({
++  default: {
++    hash: async (_pw: string, _rounds: number) => 'hashed-password',
++    compare: async (pw: string, hash: string) => hash === 'hashed-password' && pw === 'Password1',
++  },
++  hash: async (_pw: string, _rounds: number) => 'hashed-password',
++  compare: async (pw: string, hash: string) => hash === 'hashed-password' && pw === 'Password1',
++}));
++
++// Mock jsonwebtoken
++vi.mock('jsonwebtoken', () => ({
++  default: { sign: vi.fn(() => 'mock-jwt-token') },
++  sign: vi.fn(() => 'mock-jwt-token'),
++}));
++
++// Mock crypto
++vi.mock('crypto', () => ({
++  randomBytes: (_size: number) => ({ toString: (_enc: string) => 'random-session-token' }),
++}));
++
++const mockUserRow = {
++  id: 'user-id-123',
++  tenant_id: 'tenant-id-abc',
++  email: 'test@example.com',
++  name: 'Test User',
++  pin_hash: 'hashed:1234',
++  is_active: true,
++  user_roles: [{ role: { name: 'cashier' } }],
++  store_assignments: [{ store_id: 'store-id-1', scope_type: 'SINGLE_STORE' }],
++};
++
++const mockTenantRow = { id: 'tenant-id-abc', is_active: true };
++
++const mockAccountRow = {
++  userId: 'user-id-123',
++  providerId: 'credential',
++  password: 'hashed-password',
++  user: {
++    id: 'user-id-123',
++    tenant_id: 'tenant-id-abc',
++    email: 'test@example.com',
++    is_active: true,
++  },
++};
++
++const mockSessionRow = {
++  id: 'session-id-1',
++  token: 'random-session-token',
++  user_id: 'user-id-123',
++  expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
++  user: {
++    id: 'user-id-123',
++    tenant_id: 'tenant-id-abc',
++    email: 'test@example.com',
++    name: 'Test User',
++    is_active: true,
++    user_roles: [{ role: { name: 'cashier' } }],
++    store_assignments: [{ store_id: 'store-id-1', scope_type: 'SINGLE_STORE' }],
++  },
++};
++
++function makeDbMock() {
++  return {
++    user: {
++      findUnique: vi.fn(),
++      create: vi.fn().mockResolvedValue(mockUserRow),
++      update: vi.fn().mockResolvedValue({}),
++    },
++    tenant: {
++      findUnique: vi.fn(),
++    },
++    account: {
++      findFirst: vi.fn(),
++      create: vi.fn().mockResolvedValue({}),
++    },
++    session: {
++      create: vi.fn().mockResolvedValue(mockSessionRow),
++      findUnique: vi.fn(),
++      delete: vi.fn().mockResolvedValue({}),
++    },
++    auditLog: {
++      create: vi.fn().mockResolvedValue({}),
++    },
++    $transaction: vi.fn(async (fn: (tx: unknown) => Promise<unknown>) => {
++      const txMock = {
++        user: { create: vi.fn().mockResolvedValue(mockUserRow) },
++        account: { create: vi.fn().mockResolvedValue({}) },
++      };
++      return fn(txMock);
++    }),
++  };
++}
++
++describe('AuthService', () => {
++  let service: AuthService;
++  let db: ReturnType<typeof makeDbMock>;
++
++  beforeEach(() => {
++    process.env['AUTH_JWT_SECRET'] = 'test-secret-key-min-32-chars-xxxx';
++    db = makeDbMock();
++    service = new AuthService(db as never);
++  });
++
++  // ── signUp ──────────────────────────────────────────────────
++  describe('signUp', () => {
++    it('should create user and account on valid data', async () => {
++      db.user.findUnique.mockResolvedValue(null); // email not taken
++
++      const result = await service.signUp('new@example.com', 'Password1', 'New User', 'tenant-id-abc');
++
++      expect(result.email).toBe('test@example.com'); // from mockUserRow in tx
++    });
++
++    it('should throw ConflictException when email already exists', async () => {
++      db.user.findUnique.mockResolvedValue({ id: 'existing-id' });
++
++      await expect(
++        service.signUp('test@example.com', 'Password1', 'Test', 'tenant-id-abc'),
++      ).rejects.toThrow(ConflictException);
++    });
++
++    it('should throw BadRequestException for weak password', async () => {
++      db.user.findUnique.mockResolvedValue(null);
++
++      await expect(
++        service.signUp('test@example.com', 'weak', 'Test', 'tenant-id-abc'),
++      ).rejects.toThrow(BadRequestException);
++    });
++  });
++
++  // ── signIn ──────────────────────────────────────────────────
++  describe('signIn', () => {
++    it('should return session token on valid credentials', async () => {
++      db.account.findFirst.mockResolvedValue(mockAccountRow);
++
++      const token = await service.signIn('test@example.com', 'Password1', 'tenant-id-abc');
++
++      expect(token).toBe('random-session-token');
++      expect(db.session.create).toHaveBeenCalled();
++      expect(db.auditLog.create).toHaveBeenCalled();
++    });
++
++    it('should throw UnauthorizedException for wrong password', async () => {
++      db.account.findFirst.mockResolvedValue(mockAccountRow);
++
++      await expect(
++        service.signIn('test@example.com', 'WrongPassword', 'tenant-id-abc'),
++      ).rejects.toThrow(UnauthorizedException);
++    });
++
++    it('should throw UnauthorizedException when account not found', async () => {
++      db.account.findFirst.mockResolvedValue(null);
++
++      await expect(
++        service.signIn('notfound@example.com', 'Password1', 'tenant-id-abc'),
++      ).rejects.toThrow(UnauthorizedException);
++    });
++
++    it('should throw UnauthorizedException for inactive user', async () => {
++      db.account.findFirst.mockResolvedValue({
++        ...mockAccountRow,
++        user: { ...mockAccountRow.user, is_active: false },
++      });
++
++      await expect(
++        service.signIn('test@example.com', 'Password1', 'tenant-id-abc'),
++      ).rejects.toThrow(UnauthorizedException);
++    });
++  });
++
++  // ── getSession ──────────────────────────────────────────────
++  describe('getSession', () => {
++    it('should return session with user when valid', async () => {
++      db.session.findUnique.mockResolvedValue(mockSessionRow);
++
++      const result = await service.getSession('random-session-token');
++
++      expect(result).not.toBeNull();
++      expect(result?.user.email).toBe('test@example.com');
++    });
++
++    it('should return null when session not found', async () => {
++      db.session.findUnique.mockResolvedValue(null);
++
++      const result = await service.getSession('nonexistent-token');
++
++      expect(result).toBeNull();
++    });
++
++    it('should return null and delete expired session', async () => {
++      db.session.findUnique.mockResolvedValue({
++        ...mockSessionRow,
++        expires_at: new Date(Date.now() - 1000), // expired
++      });
++
++      const result = await service.getSession('expired-token');
++
++      expect(result).toBeNull();
++      expect(db.session.delete).toHaveBeenCalled();
++    });
++
++    it('should return null for inactive user', async () => {
++      db.session.findUnique.mockResolvedValue({
++        ...mockSessionRow,
++        user: { ...mockSessionRow.user, is_active: false },
++      });
++
++      const result = await service.getSession('some-token');
++
++      expect(result).toBeNull();
++    });
++  });
++
++  // ── signOut ──────────────────────────────────────────────────
++  describe('signOut', () => {
++    it('should delete session and write LOGOUT audit log', async () => {
++      db.session.findUnique.mockResolvedValue({
++        user_id: 'user-id-123',
++        user: { tenant_id: 'tenant-id-abc' },
++      });
++
++      await service.signOut('random-session-token');
++
++      expect(db.session.delete).toHaveBeenCalledWith({
++        where: { token: 'random-session-token' },
++      });
++      expect(db.auditLog.create).toHaveBeenCalledWith(
++        expect.objectContaining({ data: expect.objectContaining({ action: 'LOGOUT' }) }),
++      );
++    });
++
++    it('should be idempotent when session not found', async () => {
++      db.session.findUnique.mockResolvedValue(null);
++
++      await expect(service.signOut('nonexistent-token')).resolves.toBeUndefined();
++      expect(db.session.delete).not.toHaveBeenCalled();
++    });
++  });
++
++  // ── pinLogin ──────────────────────────────────────────────────
++  describe('pinLogin', () => {
++    it('should return token and user on successful PIN login', async () => {
++      db.tenant.findUnique.mockResolvedValue(mockTenantRow);
++      db.user.findUnique.mockResolvedValue(mockUserRow);
++
++      const result = await service.pinLogin('1234', 'pos-sdd-demo', 'test@example.com');
++
++      expect(result).toMatchObject({
++        token: 'mock-jwt-token',
++        user: {
++          id: 'user-id-123',
++          email: 'test@example.com',
++          roles: ['cashier'],
++        },
++      });
++      expect(db.auditLog.create).toHaveBeenCalled();
++    });
++
++    it('should throw UnauthorizedException for tenant not found', async () => {
++      db.tenant.findUnique.mockResolvedValue(null);
++
++      await expect(service.pinLogin('1234', 'wrong-tenant', 'test@example.com')).rejects.toThrow(
++        UnauthorizedException,
++      );
++    });
++
++    it('should throw UnauthorizedException for user not found', async () => {
++      db.tenant.findUnique.mockResolvedValue(mockTenantRow);
++      db.user.findUnique.mockResolvedValue(null);
++
++      await expect(
++        service.pinLogin('1234', 'pos-sdd-demo', 'notfound@example.com'),
++      ).rejects.toThrow(UnauthorizedException);
++    });
++
++    it('should throw UnauthorizedException for inactive user', async () => {
++      db.tenant.findUnique.mockResolvedValue(mockTenantRow);
++      db.user.findUnique.mockResolvedValue({ ...mockUserRow, is_active: false });
++
++      await expect(service.pinLogin('1234', 'pos-sdd-demo', 'test@example.com')).rejects.toThrow(
++        UnauthorizedException,
++      );
++    });
++
++    it('should throw BadRequestException when user has no PIN set', async () => {
++      db.tenant.findUnique.mockResolvedValue(mockTenantRow);
++      db.user.findUnique.mockResolvedValue({ ...mockUserRow, pin_hash: null });
++
++      await expect(service.pinLogin('1234', 'pos-sdd-demo', 'test@example.com')).rejects.toThrow(
++        BadRequestException,
++      );
++    });
++
++    it('should throw UnauthorizedException for wrong PIN', async () => {
++      db.tenant.findUnique.mockResolvedValue(mockTenantRow);
++      db.user.findUnique.mockResolvedValue(mockUserRow);
++
++      await expect(service.pinLogin('9999', 'pos-sdd-demo', 'test@example.com')).rejects.toThrow(
++        UnauthorizedException,
++      );
++    });
++  });
++
++  // ── setPinForUser ──────────────────────────────────────────
++  describe('setPinForUser', () => {
++    it('should hash PIN and update user', async () => {
++      await service.setPinForUser('user-id-123', '5678', 'tenant-id-abc');
++
++      expect(db.user.update).toHaveBeenCalledWith({
++        where: { id: 'user-id-123' },
++        data: { pin_hash: 'hashed:5678' },
++      });
++      expect(db.auditLog.create).toHaveBeenCalled();
++    });
++  });
++
++  // ── resetPinForUser ──────────────────────────────────────
++  describe('resetPinForUser', () => {
++    it('should reset PIN for user in same tenant', async () => {
++      db.user.findUnique.mockResolvedValue({ tenant_id: 'tenant-id-abc' });
++
++      await service.resetPinForUser('admin-id', 'tenant-id-abc', 'user-id-123', '4321');
++
++      expect(db.user.update).toHaveBeenCalledWith({
++        where: { id: 'user-id-123' },
++        data: { pin_hash: 'hashed:4321' },
++      });
++    });
++
++    it('should throw NotFoundException when target user does not exist', async () => {
++      db.user.findUnique.mockResolvedValue(null);
++
++      await expect(
++        service.resetPinForUser('admin-id', 'tenant-id-abc', 'nonexistent-id', '4321'),
++      ).rejects.toThrow(NotFoundException);
++    });
++
++    it('should throw ForbiddenException for cross-tenant reset', async () => {
++      db.user.findUnique.mockResolvedValue({ tenant_id: 'other-tenant-id' });
++
++      await expect(
++        service.resetPinForUser('admin-id', 'tenant-id-abc', 'user-id-123', '4321'),
++      ).rejects.toThrow(ForbiddenException);
++    });
++  });
++});
+diff --git a/apps/api/src/modules/auth/auth.service.ts b/apps/api/src/modules/auth/auth.service.ts
+new file mode 100644
+index 0000000..3d90a42
+--- /dev/null
++++ b/apps/api/src/modules/auth/auth.service.ts
+@@ -0,0 +1,365 @@
++import {
++  Injectable,
++  UnauthorizedException,
++  ForbiddenException,
++  BadRequestException,
++  NotFoundException,
++  ConflictException,
++} from '@nestjs/common';
++import { randomBytes } from 'crypto';
++import * as bcrypt from 'bcryptjs';
++import * as jwt from 'jsonwebtoken';
++import { DatabaseService } from '../database/database.service.js';
++import type { PinLoginResponseDto } from './dto/pin-login-response.dto.js';
++import type { JwtPayload } from '../../common/types/jwt-payload.js';
++import type { SessionWithUser } from '@pos-sdd/database';
++import { generateId, hashPin, verifyPin } from '@pos-sdd/shared';
++
++const SALT_ROUNDS = 10;
++const SESSION_COOKIE_NAME = 'session_token';
++
++function getSessionExpiryDays(): number {
++  const raw = process.env['SESSION_EXPIRES_IN'] ?? '7d';
++  const match = /^(\d+)d$/.exec(raw);
++  return match ? parseInt(match[1], 10) : 7;
++}
++
++function addDays(date: Date, days: number): Date {
++  const result = new Date(date);
++  result.setDate(result.getDate() + days);
++  return result;
++}
++
++export { SESSION_COOKIE_NAME };
++
++@Injectable()
++export class AuthService {
++  constructor(private readonly db: DatabaseService) {}
++
++  // ============================================================
++  // SIGN UP
++  // ============================================================
++  async signUp(
++    email: string,
++    password: string,
++    name: string,
++    tenantId: string,
++  ): Promise<{ id: string; email: string; name: string }> {
++    // Kiểm tra email đã tồn tại trong tenant chưa
++    const existing = await this.db.user.findUnique({
++      where: { tenant_id_email: { tenant_id: tenantId, email } },
++      select: { id: true },
++    });
++    if (existing) {
++      throw new ConflictException('Email đã được đăng ký');
++    }
++
++    // Validate password cơ bản (≥8 ký tự, có uppercase, lowercase, number)
++    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password)) {
++      throw new BadRequestException(
++        'Mật khẩu phải có ít nhất 8 ký tự, bao gồm chữ hoa, chữ thường và số',
++      );
++    }
++
++    const userId = generateId();
++    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
++
++    // Tạo User và Account trong một transaction
++    const user = await this.db.$transaction(async (tx) => {
++      const newUser = await tx.user.create({
++        data: {
++          id: userId,
++          tenant_id: tenantId,
++          email,
++          name,
++          is_active: true,
++        },
++      });
++
++      await tx.account.create({
++        data: {
++          id: generateId(),
++          user_id: newUser.id,
++          account_id: email,
++          provider_id: 'credential',
++          password: passwordHash,
++        },
++      });
++
++      return newUser;
++    });
++
++    return { id: user.id, email: user.email, name: user.name };
++  }
++
++  // ============================================================
++  // SIGN IN (email/password) — trả về session token
++  // ============================================================
++  async signIn(
++    email: string,
++    password: string,
++    tenantId: string,
++    ipAddress?: string,
++    userAgent?: string,
++  ): Promise<string> {
++    const account = await this.db.account.findFirst({
++      where: {
++        user: { email, tenant_id: tenantId },
++        provider_id: 'credential',
++      },
++      include: {
++        user: true,
++      },
++    });
++
++    if (!account?.password || !(await bcrypt.compare(password, account.password))) {
++      throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
++    }
++
++    if (!account.user.is_active) {
++      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa');
++    }
++
++    const token = randomBytes(32).toString('hex');
++    const expiryDays = getSessionExpiryDays();
++
++    await this.db.session.create({
++      data: {
++        id: generateId(),
++        token,
++        user_id: account.user_id,
++        expires_at: addDays(new Date(), expiryDays),
++        ip_address: ipAddress ?? null,
++        user_agent: userAgent ?? null,
++      },
++    });
++
++    await this.db.auditLog.create({
++      data: {
++        id: generateId(),
++        tenant_id: tenantId,
++        user_id: account.user_id,
++        action: 'LOGIN',
++        resource: 'session',
++        metadata: { method: 'email_password' },
++      },
++    });
++
++    return token;
++  }
++
++  // ============================================================
++  // GET SESSION — lấy session kèm user info
++  // ============================================================
++  async getSession(token: string): Promise<SessionWithUser | null> {
++    const session = await this.db.session.findUnique({
++      where: { token },
++      include: {
++        user: {
++          include: {
++            user_roles: {
++              include: { role: true },
++            },
++            store_assignments: true,
++          },
++        },
++      },
++    });
++
++    if (!session) return null;
++
++    // Kiểm tra session còn hạn không
++    if (session.expires_at < new Date()) {
++      // Xóa session hết hạn
++      await this.db.session.delete({ where: { token } }).catch(() => null);
++      return null;
++    }
++
++    if (!session.user.is_active) return null;
++
++    return session as SessionWithUser;
++  }
++
++  // ============================================================
++  // SIGN OUT
++  // ============================================================
++  async signOut(token: string): Promise<void> {
++    const session = await this.db.session.findUnique({
++      where: { token },
++      select: { user_id: true, user: { select: { tenant_id: true } } },
++    });
++
++    if (!session) return; // Idempotent — không throw lỗi
++
++    await this.db.session.delete({ where: { token } });
++
++    await this.db.auditLog.create({
++      data: {
++        id: generateId(),
++        tenant_id: session.user.tenant_id,
++        user_id: session.user_id,
++        action: 'LOGOUT',
++        resource: 'session',
++      },
++    });
++  }
++
++  // ============================================================
++  // PIN LOGIN — trả về JWT (cho POS offline)
++  // ============================================================
++  async pinLogin(pin: string, tenantSlug: string, email: string): Promise<PinLoginResponseDto> {
++    const tenant = await this.db.tenant.findUnique({
++      where: { slug: tenantSlug },
++      select: { id: true, is_active: true },
++    });
++
++    if (!tenant || !tenant.is_active) {
++      throw new UnauthorizedException('Tenant không tồn tại hoặc không hoạt động');
++    }
++
++    const user = await this.db.user.findUnique({
++      where: { tenant_id_email: { tenant_id: tenant.id, email } },
++      include: {
++        user_roles: {
++          include: { role: { select: { name: true } } },
++        },
++        store_assignments: {
++          select: { store_id: true, scope_type: true },
++        },
++      },
++    });
++
++    if (!user) {
++      this._logFailedLogin(tenant.id, email, 'user_not_found');
++      throw new UnauthorizedException('Email hoặc PIN không đúng');
++    }
++
++    if (!user.is_active) {
++      this._logFailedLogin(tenant.id, email, 'user_inactive');
++      throw new UnauthorizedException('Tài khoản đã bị vô hiệu hóa');
++    }
++
++    if (!user.pin_hash) {
++      throw new BadRequestException('PIN chưa được thiết lập. Vui lòng liên hệ quản lý.');
++    }
++
++    const isValidPin = await verifyPin(pin, user.pin_hash);
++    if (!isValidPin) {
++      this._logFailedLogin(tenant.id, email, 'invalid_pin');
++      throw new UnauthorizedException('Email hoặc PIN không đúng');
++    }
++
++    const roles = user.user_roles.map((ur) => ur.role.name);
++    const storeAssignments = user.store_assignments.map((sa) => ({
++      storeId: sa.store_id,
++      scopeType: sa.scope_type as 'SINGLE_STORE' | 'STORE_GROUP' | 'ALL_STORES',
++    }));
++
++    const secret = process.env['AUTH_JWT_SECRET'];
++    if (!secret) throw new Error('AUTH_JWT_SECRET is not set');
++
++    const payload: Omit<JwtPayload, 'iat' | 'exp'> = {
++      userId: user.id,
++      tenantId: tenant.id,
++      roles,
++      storeAssignments,
++    };
++
++    const token = jwt.sign(payload, secret, { expiresIn: '24h' });
++
++    await this.db.auditLog.create({
++      data: {
++        id: generateId(),
++        tenant_id: tenant.id,
++        user_id: user.id,
++        action: 'LOGIN',
++        resource: 'session',
++        metadata: { method: 'pin' },
++      },
++    });
++
++    return {
++      token,
++      user: {
++        id: user.id,
++        name: user.name,
++        email: user.email,
++        roles,
++        storeAssignments,
++      },
++    };
++  }
++
++  // ============================================================
++  // SET PIN (user tự đặt)
++  // ============================================================
++  async setPinForUser(userId: string, pin: string, tenantId: string): Promise<{ success: true }> {
++    const pinHash = await hashPin(pin);
++
++    await this.db.user.update({
++      where: { id: userId },
++      data: { pin_hash: pinHash },
++    });
++
++    await this.db.auditLog.create({
++      data: {
++        id: generateId(),
++        tenant_id: tenantId,
++        user_id: userId,
++        action: 'UPDATE',
++        resource: 'user_pin',
++        resource_id: userId,
++      },
++    });
++
++    return { success: true };
++  }
++
++  // ============================================================
++  // RESET PIN (admin đặt lại cho user khác)
++  // ============================================================
++  async resetPinForUser(
++    adminUserId: string,
++    adminTenantId: string,
++    targetUserId: string,
++    newPin: string,
++  ): Promise<{ success: true }> {
++    const targetUser = await this.db.user.findUnique({
++      where: { id: targetUserId },
++      select: { tenant_id: true },
++    });
++
++    if (!targetUser) {
++      throw new NotFoundException('Không tìm thấy người dùng');
++    }
++
++    if (targetUser.tenant_id !== adminTenantId) {
++      throw new ForbiddenException('Không có quyền thực hiện thao tác này');
++    }
++
++    const pinHash = await hashPin(newPin);
++
++    await this.db.user.update({
++      where: { id: targetUserId },
++      data: { pin_hash: pinHash },
++    });
++
++    await this.db.auditLog.create({
++      data: {
++        id: generateId(),
++        tenant_id: adminTenantId,
++        user_id: adminUserId,
++        action: 'UPDATE',
++        resource: 'user_pin',
++        resource_id: targetUserId,
++        metadata: { reset_by: adminUserId },
++      },
++    });
++
++    return { success: true };
++  }
++
++  private _logFailedLogin(tenantId: string, email: string, reason: string): void {
++    console.warn(`[AUTH] Failed login attempt: reason=${reason} email=${email} tenant=${tenantId}`);
++  }
++}
+diff --git a/apps/api/src/modules/auth/dto/pin-login-response.dto.ts b/apps/api/src/modules/auth/dto/pin-login-response.dto.ts
+new file mode 100644
+index 0000000..f4079ba
+--- /dev/null
++++ b/apps/api/src/modules/auth/dto/pin-login-response.dto.ts
+@@ -0,0 +1,17 @@
++export interface StoreAssignment {
++  storeId: string;
++  scopeType: 'SINGLE_STORE' | 'STORE_GROUP' | 'ALL_STORES';
++}
++
++export interface PinLoginUserDto {
++  id: string;
++  name: string;
++  email: string;
++  roles: string[];
++  storeAssignments: StoreAssignment[];
++}
++
++export interface PinLoginResponseDto {
++  token: string;
++  user: PinLoginUserDto;
++}
+diff --git a/apps/api/src/modules/auth/dto/pin-login.dto.ts b/apps/api/src/modules/auth/dto/pin-login.dto.ts
+new file mode 100644
+index 0000000..bbbbf79
+--- /dev/null
++++ b/apps/api/src/modules/auth/dto/pin-login.dto.ts
+@@ -0,0 +1,13 @@
++import { IsEmail, IsString, Matches } from 'class-validator';
++
++export class PinLoginDto {
++  @IsString()
++  @Matches(/^\d{4,8}$/, { message: 'PIN phải là 4-8 chữ số' })
++  pin!: string;
++
++  @IsString()
++  tenantSlug!: string;
++
++  @IsEmail()
++  email!: string;
++}
+diff --git a/apps/api/src/modules/auth/dto/reset-pin.dto.ts b/apps/api/src/modules/auth/dto/reset-pin.dto.ts
+new file mode 100644
+index 0000000..c6005aa
+--- /dev/null
++++ b/apps/api/src/modules/auth/dto/reset-pin.dto.ts
+@@ -0,0 +1,10 @@
++import { IsString, IsUUID, Matches } from 'class-validator';
++
++export class ResetPinDto {
++  @IsUUID('all')
++  userId!: string;
++
++  @IsString()
++  @Matches(/^\d{4,8}$/, { message: 'PIN mới phải là 4-8 chữ số' })
++  newPin!: string;
++}
+diff --git a/apps/api/src/modules/auth/dto/set-pin.dto.ts b/apps/api/src/modules/auth/dto/set-pin.dto.ts
+new file mode 100644
+index 0000000..7da76cb
+--- /dev/null
++++ b/apps/api/src/modules/auth/dto/set-pin.dto.ts
+@@ -0,0 +1,7 @@
++import { IsString, Matches } from 'class-validator';
++
++export class SetPinDto {
++  @IsString()
++  @Matches(/^\d{4,8}$/, { message: 'PIN phải là 4-8 chữ số' })
++  pin!: string;
++}
+diff --git a/apps/api/src/modules/auth/dto/sign-in.dto.ts b/apps/api/src/modules/auth/dto/sign-in.dto.ts
+new file mode 100644
+index 0000000..d4c2d56
+--- /dev/null
++++ b/apps/api/src/modules/auth/dto/sign-in.dto.ts
+@@ -0,0 +1,13 @@
++import { IsEmail, IsString, MinLength, IsUUID } from 'class-validator';
++
++export class SignInDto {
++  @IsEmail({}, { message: 'Email không hợp lệ' })
++  email!: string;
++
++  @IsString()
++  @MinLength(1, { message: 'Mật khẩu không được để trống' })
++  password!: string;
++
++  @IsUUID('all', { message: 'tenantId không hợp lệ' })
++  tenantId!: string;
++}
+diff --git a/apps/api/src/modules/auth/dto/sign-up.dto.ts b/apps/api/src/modules/auth/dto/sign-up.dto.ts
+new file mode 100644
+index 0000000..5bb32a5
+--- /dev/null
++++ b/apps/api/src/modules/auth/dto/sign-up.dto.ts
+@@ -0,0 +1,20 @@
++import { IsEmail, IsString, MinLength, Matches, IsUUID } from 'class-validator';
++
++export class SignUpDto {
++  @IsEmail({}, { message: 'Email không hợp lệ' })
++  email!: string;
++
++  @IsString()
++  @MinLength(8, { message: 'Mật khẩu phải có ít nhất 8 ký tự' })
++  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$/, {
++    message: 'Mật khẩu phải có chữ hoa, chữ thường và số',
++  })
++  password!: string;
++
++  @IsString()
++  @MinLength(1, { message: 'Tên không được để trống' })
++  name!: string;
++
++  @IsUUID('all', { message: 'tenantId không hợp lệ' })
++  tenantId!: string;
++}
+diff --git a/apps/web/app/(auth)/pin/page.tsx b/apps/web/app/(auth)/pin/page.tsx
+new file mode 100644
+index 0000000..3dc5276
+--- /dev/null
++++ b/apps/web/app/(auth)/pin/page.tsx
+@@ -0,0 +1,160 @@
++'use client';
++
++import { useState } from 'react';
++import { useRouter } from 'next/navigation';
++
++export default function PinLoginPage() {
++  const router = useRouter();
++  const [email, setEmail] = useState('');
++  const [tenantSlug, setTenantSlug] = useState('');
++  const [pin, setPin] = useState('');
++  const [error, setError] = useState('');
++  const [loading, setLoading] = useState(false);
++
++  async function handleSubmit(e: React.FormEvent) {
++    e.preventDefault();
++    setError('');
++    setLoading(true);
++
++    try {
++      const apiUrl = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001';
++      const response = await fetch(`${apiUrl}/api/v1/auth/pin-login`, {
++        method: 'POST',
++        headers: { 'Content-Type': 'application/json' },
++        body: JSON.stringify({ pin, tenantSlug, email }),
++      });
++
++      if (!response.ok) {
++        const data = await response.json();
++        setError(data.message || 'Đăng nhập thất bại');
++        return;
++      }
++
++      const { token, user } = await response.json();
++
++      // Lưu JWT token để dùng cho POS offline
++      localStorage.setItem('pos_jwt', token);
++      localStorage.setItem('pos_user', JSON.stringify({
++        id: user.id,
++        name: user.name,
++        email: user.email,
++        roles: user.roles,
++        storeAssignments: user.storeAssignments,
++        cachedAt: Date.now(),
++      }));
++
++      router.push('/pos');
++    } catch {
++      setError('Có lỗi xảy ra. Vui lòng thử lại.');
++    } finally {
++      setLoading(false);
++    }
++  }
++
++  function handlePinInput(digit: string) {
++    if (pin.length < 8) {
++      setPin((prev) => prev + digit);
++    }
++  }
++
++  return (
++    <div>
++      <h2 className="text-2xl font-semibold text-gray-900 mb-6">Đăng nhập POS</h2>
++
++      {error && (
++        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
++          {error}
++        </div>
++      )}
++
++      <form onSubmit={handleSubmit} className="space-y-4">
++        <div>
++          <label htmlFor="tenantSlug" className="block text-sm font-medium text-gray-700 mb-1">
++            Tên nhà hàng (Slug)
++          </label>
++          <input
++            id="tenantSlug"
++            type="text"
++            value={tenantSlug}
++            onChange={(e) => setTenantSlug(e.target.value)}
++            required
++            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition"
++            placeholder="pos-sdd-demo"
++          />
++        </div>
++
++        <div>
++          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
++            Email
++          </label>
++          <input
++            id="email"
++            type="email"
++            value={email}
++            onChange={(e) => setEmail(e.target.value)}
++            required
++            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition"
++            placeholder="cashier@pos-sdd.local"
++          />
++        </div>
++
++        <div>
++          <label className="block text-sm font-medium text-gray-700 mb-2">PIN</label>
++          <div className="flex justify-center gap-2 mb-4">
++            {Array.from({ length: Math.max(pin.length, 4) }).map((_, i) => (
++              <div
++                key={i}
++                className={`w-10 h-10 border-2 rounded-xl flex items-center justify-center text-xl font-bold ${
++                  i < pin.length ? 'border-amber-500 bg-amber-50' : 'border-gray-300'
++                }`}
++              >
++                {i < pin.length ? '●' : ''}
++              </div>
++            ))}
++          </div>
++
++          {/* PIN keypad */}
++          <div className="grid grid-cols-3 gap-2">
++            {['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'].map((key) => (
++              <button
++                key={key}
++                type="button"
++                onClick={() => {
++                  if (key === '⌫') setPin((prev) => prev.slice(0, -1));
++                  else if (key !== '') handlePinInput(key);
++                }}
++                disabled={key === ''}
++                className={`py-4 rounded-xl text-xl font-medium transition min-h-[44px] ${
++                  key === ''
++                    ? 'invisible'
++                    : key === '⌫'
++                    ? 'bg-gray-100 hover:bg-gray-200 text-gray-700'
++                    : 'bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200'
++                }`}
++              >
++                {key}
++              </button>
++            ))}
++          </div>
++
++          <input type="hidden" value={pin} required />
++        </div>
++
++        <button
++          type="submit"
++          disabled={loading || pin.length < 4}
++          className="w-full py-3 px-4 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400 text-white font-medium rounded-xl transition min-h-[44px]"
++        >
++          {loading ? 'Đang đăng nhập...' : 'Đăng nhập'}
++        </button>
++      </form>
++
++      <p className="mt-4 text-center text-sm text-gray-500">
++        Dành cho Dashboard?{' '}
++        <a href="/auth/login" className="text-amber-600 hover:text-amber-700 font-medium">
++          Đăng nhập bằng email
++        </a>
++      </p>
++    </div>
++  );
++}
+diff --git a/apps/web/hooks/useAuth.ts b/apps/web/hooks/useAuth.ts
+new file mode 100644
+index 0000000..b5d6643
+--- /dev/null
++++ b/apps/web/hooks/useAuth.ts
+@@ -0,0 +1,38 @@
++'use client';
++
++import { useState, useEffect, useCallback } from 'react';
++import { authClient, type SessionUser } from '../lib/auth-client';
++
++export function useAuth() {
++  const [user, setUser] = useState<SessionUser | null>(null);
++  const [isLoading, setIsLoading] = useState(true);
++
++  useEffect(() => {
++    authClient
++      .getSession()
++      .then((data) => {
++        setUser(data?.user ?? null);
++      })
++      .catch(() => {
++        setUser(null);
++      })
++      .finally(() => {
++        setIsLoading(false);
++      });
++  }, []);
++
++  const logout = useCallback(async () => {
++    try {
++      await authClient.signOut();
++    } finally {
++      setUser(null);
++    }
++  }, []);
++
++  return {
++    user,
++    isAuthenticated: !!user,
++    isLoading,
++    logout,
++  };
++}
+diff --git a/apps/web/lib/auth-client.ts b/apps/web/lib/auth-client.ts
+new file mode 100644
+index 0000000..ef3fcb0
+--- /dev/null
++++ b/apps/web/lib/auth-client.ts
+@@ -0,0 +1,69 @@
++const API_BASE = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001';
++
++export interface SessionUser {
++  id: string;
++  email: string;
++  name: string;
++  tenantId: string;
++  roles: string[];
++  storeAssignments: { storeId: string; scopeType: string }[];
++}
++
++export interface AuthClientError {
++  message: string;
++  statusCode: number;
++}
++
++async function handleResponse<T>(res: Response): Promise<T> {
++  if (!res.ok) {
++    let message = res.statusText;
++    try {
++      const body = await res.json();
++      message = body.message ?? message;
++    } catch {
++      // ignore JSON parse error
++    }
++    throw { message, statusCode: res.status } satisfies AuthClientError;
++  }
++  return res.json() as Promise<T>;
++}
++
++export const authClient = {
++  signUp: (email: string, password: string, name: string, tenantId: string) =>
++    fetch(`${API_BASE}/api/v1/auth/sign-up`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify({ email, password, name, tenantId }),
++      credentials: 'include',
++    }).then((r) => handleResponse<{ id: string; email: string; name: string }>(r)),
++
++  signIn: (email: string, password: string, tenantId: string) =>
++    fetch(`${API_BASE}/api/v1/auth/sign-in`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify({ email, password, tenantId }),
++      credentials: 'include',
++    }).then((r) => handleResponse<{ success: true }>(r)),
++
++  signOut: () =>
++    fetch(`${API_BASE}/api/v1/auth/sign-out`, {
++      method: 'POST',
++      credentials: 'include',
++    }).then((r) => handleResponse<{ success: true }>(r)),
++
++  getSession: () =>
++    fetch(`${API_BASE}/api/v1/auth/session`, {
++      credentials: 'include',
++    }).then(async (r) => {
++      if (r.status === 401) return null;
++      return handleResponse<{ user: SessionUser }>(r);
++    }),
++
++  pinLogin: (pin: string, tenantSlug: string, email: string) =>
++    fetch(`${API_BASE}/api/v1/auth/pin-login`, {
++      method: 'POST',
++      headers: { 'Content-Type': 'application/json' },
++      body: JSON.stringify({ pin, tenantSlug, email }),
++      credentials: 'include',
++    }).then((r) => handleResponse<{ token: string; user: { id: string; name: string; email: string; roles: string[]; storeAssignments: { storeId: string; scopeType: string }[] } }>(r)),
++};
+diff --git a/apps/web/middleware.ts b/apps/web/middleware.ts
+new file mode 100644
+index 0000000..0be3714
+--- /dev/null
++++ b/apps/web/middleware.ts
+@@ -0,0 +1,54 @@
++import { NextResponse } from 'next/server';
++import type { NextRequest } from 'next/server';
++
++const API_BASE = process.env['NEXT_PUBLIC_API_URL'] || 'http://localhost:3001';
++
++// Routes yêu cầu xác thực
++const PROTECTED_PATTERNS = [
++  /^\/(dashboard|management)/,
++];
++
++// Routes auth (public)
++const AUTH_PATTERNS = [
++  /^\/login/,
++  /^\/pin/,
++];
++
++export async function middleware(request: NextRequest) {
++  const { pathname } = request.nextUrl;
++
++  const isProtected = PROTECTED_PATTERNS.some((pattern) => pattern.test(pathname));
++
++  if (!isProtected) {
++    return NextResponse.next();
++  }
++
++  // Kiểm tra session bằng cách gọi API server với cookie forwarding
++  const cookieHeader = request.headers.get('cookie') ?? '';
++
++  try {
++    const res = await fetch(`${API_BASE}/api/v1/auth/session`, {
++      headers: { cookie: cookieHeader },
++      // Không dùng credentials: 'include' trong server-side fetch
++    });
++
++    if (res.status === 401) {
++      const loginUrl = new URL('/login', request.url);
++      loginUrl.searchParams.set('redirect', pathname);
++      return NextResponse.redirect(loginUrl);
++    }
++  } catch {
++    // Nếu không connect được API server, redirect về login để an toàn
++    const loginUrl = new URL('/login', request.url);
++    loginUrl.searchParams.set('redirect', pathname);
++    return NextResponse.redirect(loginUrl);
++  }
++
++  return NextResponse.next();
++}
++
++export const config = {
++  matcher: [
++    '/((?!_next/static|_next/image|favicon.ico|api/).*)',
++  ],
++};
+diff --git a/packages/database/prisma/migrations/20260326085755_add_better_auth_tables/migration.sql b/packages/database/prisma/migrations/20260326085755_add_better_auth_tables/migration.sql
+new file mode 100644
+index 0000000..4ac8395
+--- /dev/null
++++ b/packages/database/prisma/migrations/20260326085755_add_better_auth_tables/migration.sql
+@@ -0,0 +1,62 @@
++-- CreateTable
++CREATE TABLE "accounts" (
++    "id" UUID NOT NULL,
++    "user_id" UUID NOT NULL,
++    "account_id" TEXT NOT NULL,
++    "provider_id" TEXT NOT NULL,
++    "access_token" TEXT,
++    "refresh_token" TEXT,
++    "access_token_expires_at" TIMESTAMP(3),
++    "refresh_token_expires_at" TIMESTAMP(3),
++    "scope" TEXT,
++    "id_token" TEXT,
++    "password" TEXT,
++    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updated_at" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "accounts_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "sessions" (
++    "id" UUID NOT NULL,
++    "user_id" UUID NOT NULL,
++    "token" TEXT NOT NULL,
++    "ip_address" TEXT,
++    "user_agent" TEXT,
++    "expires_at" TIMESTAMP(3) NOT NULL,
++    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updated_at" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "sessions_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateTable
++CREATE TABLE "verifications" (
++    "id" UUID NOT NULL,
++    "identifier" TEXT NOT NULL,
++    "value" TEXT NOT NULL,
++    "expires_at" TIMESTAMP(3) NOT NULL,
++    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
++    "updated_at" TIMESTAMP(3) NOT NULL,
++
++    CONSTRAINT "verifications_pkey" PRIMARY KEY ("id")
++);
++
++-- CreateIndex
++CREATE INDEX "accounts_user_id_idx" ON "accounts"("user_id");
++
++-- CreateIndex
++CREATE UNIQUE INDEX "sessions_token_key" ON "sessions"("token");
++
++-- CreateIndex
++CREATE INDEX "sessions_user_id_idx" ON "sessions"("user_id");
++
++-- CreateIndex
++CREATE INDEX "sessions_token_idx" ON "sessions"("token");
++
++-- AddForeignKey
++ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+diff --git a/packages/database/prisma/migrations/20260326145737_fix_better_auth_schema/migration.sql b/packages/database/prisma/migrations/20260326145737_fix_better_auth_schema/migration.sql
+new file mode 100644
+index 0000000..ebc44e3
+--- /dev/null
++++ b/packages/database/prisma/migrations/20260326145737_fix_better_auth_schema/migration.sql
+@@ -0,0 +1,71 @@
++/*
++  Warnings:
++
++  - The primary key for the `accounts` table will be changed. If it partially fails, the table could be left without primary key constraint.
++  - The primary key for the `sessions` table will be changed. If it partially fails, the table could be left without primary key constraint.
++  - The primary key for the `users` table will be changed. If it partially fails, the table could be left without primary key constraint.
++  - The primary key for the `verifications` table will be changed. If it partially fails, the table could be left without primary key constraint.
++
++*/
++-- DropForeignKey
++ALTER TABLE "accounts" DROP CONSTRAINT "accounts_user_id_fkey";
++
++-- DropForeignKey
++ALTER TABLE "audit_logs" DROP CONSTRAINT "audit_logs_user_id_fkey";
++
++-- DropForeignKey
++ALTER TABLE "sessions" DROP CONSTRAINT "sessions_user_id_fkey";
++
++-- DropForeignKey
++ALTER TABLE "user_roles" DROP CONSTRAINT "user_roles_user_id_fkey";
++
++-- DropForeignKey
++ALTER TABLE "user_store_assignments" DROP CONSTRAINT "user_store_assignments_user_id_fkey";
++
++-- AlterTable
++ALTER TABLE "accounts" DROP CONSTRAINT "accounts_pkey",
++ALTER COLUMN "id" SET DATA TYPE TEXT,
++ALTER COLUMN "user_id" SET DATA TYPE TEXT,
++ADD CONSTRAINT "accounts_pkey" PRIMARY KEY ("id");
++
++-- AlterTable
++ALTER TABLE "audit_logs" ALTER COLUMN "user_id" SET DATA TYPE TEXT;
++
++-- AlterTable
++ALTER TABLE "sessions" DROP CONSTRAINT "sessions_pkey",
++ALTER COLUMN "id" SET DATA TYPE TEXT,
++ALTER COLUMN "user_id" SET DATA TYPE TEXT,
++ADD CONSTRAINT "sessions_pkey" PRIMARY KEY ("id");
++
++-- AlterTable
++ALTER TABLE "user_roles" ALTER COLUMN "user_id" SET DATA TYPE TEXT;
++
++-- AlterTable
++ALTER TABLE "user_store_assignments" ALTER COLUMN "user_id" SET DATA TYPE TEXT;
++
++-- AlterTable
++ALTER TABLE "users" DROP CONSTRAINT "users_pkey",
++ADD COLUMN     "email_verified" BOOLEAN NOT NULL DEFAULT false,
++ADD COLUMN     "image" TEXT,
++ALTER COLUMN "id" SET DATA TYPE TEXT,
++ADD CONSTRAINT "users_pkey" PRIMARY KEY ("id");
++
++-- AlterTable
++ALTER TABLE "verifications" DROP CONSTRAINT "verifications_pkey",
++ALTER COLUMN "id" SET DATA TYPE TEXT,
++ADD CONSTRAINT "verifications_pkey" PRIMARY KEY ("id");
++
++-- AddForeignKey
++ALTER TABLE "accounts" ADD CONSTRAINT "accounts_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "sessions" ADD CONSTRAINT "sessions_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "user_roles" ADD CONSTRAINT "user_roles_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "user_store_assignments" ADD CONSTRAINT "user_store_assignments_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
++
++-- AddForeignKey
++ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_logs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+diff --git a/packages/database/src/auth.ts b/packages/database/src/auth.ts
+new file mode 100644
+index 0000000..caca160
+--- /dev/null
++++ b/packages/database/src/auth.ts
+@@ -0,0 +1,19 @@
++import type { User, Session, Account, UserRole, UserStoreAssignment, Role } from '@prisma/client';
++
++/**
++ * Session với đầy đủ thông tin user, roles và store assignments
++ * Prisma 7.x dùng snake_case field names (theo @map definitions)
++ */
++export type SessionWithUser = Session & {
++  user: User & {
++    user_roles: (UserRole & { role: Role })[];
++    store_assignments: UserStoreAssignment[];
++  };
++};
++
++/**
++ * Account với thông tin user liên kết
++ */
++export type AccountWithUser = Account & {
++  user: User;
++};
+diff --git a/packages/shared/src/auth/index.ts b/packages/shared/src/auth/index.ts
+new file mode 100644
+index 0000000..40b09d0
+--- /dev/null
++++ b/packages/shared/src/auth/index.ts
+@@ -0,0 +1,3 @@
++export * from './pin-utils.js';
++export * from './offline-auth.js';
++export * from './jwt-utils.js';
+diff --git a/packages/shared/src/auth/jwt-utils.ts b/packages/shared/src/auth/jwt-utils.ts
+new file mode 100644
+index 0000000..2fdcef6
+--- /dev/null
++++ b/packages/shared/src/auth/jwt-utils.ts
+@@ -0,0 +1,21 @@
++/**
++ * JWT Payload structure cho POS/KDS offline-capable authentication.
++ */
++export interface JwtPayload {
++  userId: string;
++  tenantId: string;
++  roles: string[];
++  storeAssignments: {
++    storeId: string;
++    scopeType: 'SINGLE_STORE' | 'STORE_GROUP' | 'ALL_STORES';
++  }[];
++  iat: number; // issued at (unix timestamp)
++  exp: number; // expiry (unix timestamp) — 24h từ iat
++}
++
++/**
++ * Kiểm tra xem JWT payload có hết hạn không.
++ */
++export function isTokenExpired(payload: JwtPayload): boolean {
++  return Math.floor(Date.now() / 1000) > payload.exp;
++}
+diff --git a/packages/shared/src/auth/offline-auth.ts b/packages/shared/src/auth/offline-auth.ts
+new file mode 100644
+index 0000000..606329e
+--- /dev/null
++++ b/packages/shared/src/auth/offline-auth.ts
+@@ -0,0 +1,26 @@
++/**
++ * Dữ liệu auth được cache tại POS cho offline verification.
++ * Lưu trữ trong localStorage được mã hóa bằng Web Crypto API AES-256.
++ */
++export interface CachedAuthData {
++  userId: string;
++  tenantId: string;
++  email: string;
++  name: string;
++  roles: string[];
++  storeAssignments: {
++    storeId: string;
++    scopeType: 'SINGLE_STORE' | 'STORE_GROUP' | 'ALL_STORES';
++  }[];
++  pinHash: string;
++  cachedAt: number; // Unix timestamp (ms)
++}
++
++/**
++ * Kiểm tra xem cache auth data có còn hợp lệ không.
++ * @param cachedAt - Thời điểm cache (Unix ms)
++ * @param maxAgeMs - Thời gian tối đa cache còn hợp lệ (ms)
++ */
++export function isAuthCacheValid(cachedAt: number, maxAgeMs: number): boolean {
++  return Date.now() - cachedAt < maxAgeMs;
++}
+diff --git a/packages/shared/src/auth/pin-utils.spec.ts b/packages/shared/src/auth/pin-utils.spec.ts
+new file mode 100644
+index 0000000..76ee21c
+--- /dev/null
++++ b/packages/shared/src/auth/pin-utils.spec.ts
+@@ -0,0 +1,67 @@
++import { describe, it, expect } from 'vitest';
++import { hashPin, verifyPin, validatePinFormat } from './pin-utils.js';
++
++describe('PIN Utilities', () => {
++  describe('validatePinFormat', () => {
++    it('should accept 4-digit PIN', () => {
++      expect(validatePinFormat('1234')).toBe(true);
++    });
++
++    it('should accept 8-digit PIN', () => {
++      expect(validatePinFormat('12345678')).toBe(true);
++    });
++
++    it('should accept 6-digit PIN', () => {
++      expect(validatePinFormat('123456')).toBe(true);
++    });
++
++    it('should reject PIN with less than 4 digits', () => {
++      expect(validatePinFormat('123')).toBe(false);
++    });
++
++    it('should reject PIN with more than 8 digits', () => {
++      expect(validatePinFormat('123456789')).toBe(false);
++    });
++
++    it('should reject PIN with letters', () => {
++      expect(validatePinFormat('abcd')).toBe(false);
++    });
++
++    it('should reject PIN with special characters', () => {
++      expect(validatePinFormat('1234!')).toBe(false);
++    });
++
++    it('should reject empty string', () => {
++      expect(validatePinFormat('')).toBe(false);
++    });
++  });
++
++  describe('hashPin + verifyPin', () => {
++    it('should hash a PIN and verify it correctly', async () => {
++      const pin = '1234';
++      const hash = await hashPin(pin);
++
++      expect(hash).toBeTruthy();
++      expect(hash).not.toBe(pin);
++      expect(await verifyPin(pin, hash)).toBe(true);
++    });
++
++    it('should return false for wrong PIN', async () => {
++      const pin = '1234';
++      const wrongPin = '9999';
++      const hash = await hashPin(pin);
++
++      expect(await verifyPin(wrongPin, hash)).toBe(false);
++    });
++
++    it('should generate different hashes for same PIN (salt)', async () => {
++      const pin = '1234';
++      const hash1 = await hashPin(pin);
++      const hash2 = await hashPin(pin);
++
++      expect(hash1).not.toBe(hash2);
++      expect(await verifyPin(pin, hash1)).toBe(true);
++      expect(await verifyPin(pin, hash2)).toBe(true);
++    });
++  });
++});
+diff --git a/packages/shared/src/auth/pin-utils.ts b/packages/shared/src/auth/pin-utils.ts
+new file mode 100644
+index 0000000..9e91fdc
+--- /dev/null
++++ b/packages/shared/src/auth/pin-utils.ts
+@@ -0,0 +1,24 @@
++import * as bcrypt from 'bcryptjs';
++
++/**
++ * Hash PIN bằng bcrypt (salt rounds = 10).
++ * Dùng cho cả server-side (NestJS) và offline verification (POS browser).
++ */
++export async function hashPin(pin: string): Promise<string> {
++  return bcrypt.hash(pin, 10);
++}
++
++/**
++ * So sánh PIN với hash đã lưu.
++ * Trả về true nếu PIN khớp, false nếu không.
++ */
++export async function verifyPin(pin: string, hash: string): Promise<boolean> {
++  return bcrypt.compare(pin, hash);
++}
++
++/**
++ * Validate định dạng PIN: 4-8 ký tự số.
++ */
++export function validatePinFormat(pin: string): boolean {
++  return /^\d{4,8}$/.test(pin);
++}
