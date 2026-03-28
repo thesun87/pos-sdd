@@ -1,8 +1,8 @@
 {
   "info": {
     "_postman_id": "pos-sdd-auth-collection",
-    "name": "POS-SDD Authentication API",
-    "description": "Postman collection cho Story 1.3–1.4 — Custom Auth & User Account Management CRUD\n\n**Base URL:** `http://localhost:3001/api/v1`\n\n**Seed data mặc định:**\n- Email: `admin@pos-sdd.local`\n- Password: `Admin@123456`\n- PIN: `123456`\n- Tenant slug: `pos-sdd-demo`\n- Tenant ID: (lấy từ GET /auth/session sau khi sign-in)\n\n**Auth modes:**\n1. Session (HttpOnly cookie `session_token`) — email/password login\n2. JWT Bearer — PIN login cho POS/KDS\n\n**User Management (Story 1.4):**\n- `POST /api/v1/users` — tạo user mới\n- `GET /api/v1/users` — danh sách users (có pagination + filter)\n- `GET /api/v1/users/:id` — chi tiết user\n- `PATCH /api/v1/users/:id` — cập nhật user\n- `POST /api/v1/users/:id/deactivate` — vô hiệu hóa user\n- `POST /api/v1/users/:id/activate` — kích hoạt user",
+    "name": "POS-SDD Authentication & RBAC API",
+    "description": "Postman collection cho Story 1.3–1.5 — Custom Auth, User Management & Role/Policy RBAC\n\n**Base URL:** `http://localhost:3001/api/v1`\n\n**Seed data mặc định:**\n- Email: `admin@pos-sdd.local`\n- Password: `Admin@123456`\n- PIN: `123456`\n- Tenant slug: `pos-sdd-demo`\n- Tenant ID: (lấy từ GET /auth/session sau khi sign-in)\n\n**Auth modes:**\n1. Session (HttpOnly cookie `session_token`) — email/password login\n2. JWT Bearer — PIN login cho POS/KDS\n\n**Code Review Fixes (Story 1.5 Patch):**\n- POST /users/:id/roles gio yeu cau role chain_owner hoac system_admin\n- Policy CRUD duoc wrap trong DB transaction (audit log atomic)\n- Policy cache invalidate ngay sau moi thay doi (khong phai sau 5 phut)\n- overrideRole duoc validate ton tai trong tenant khi tao policy\n- GET /roles/:id tra ve tat ca policies (bao gom inactive)\n- APPROVAL_JWT_SECRET rieng biet cho approval tokens\n\n**User Management (Story 1.4):**\n- `POST /api/v1/users` — tạo user mới\n- `GET /api/v1/users` — danh sách users (có pagination + filter)\n- `GET /api/v1/users/:id` — chi tiết user\n- `PATCH /api/v1/users/:id` — cập nhật user\n- `POST /api/v1/users/:id/deactivate` — vô hiệu hóa user\n- `POST /api/v1/users/:id/activate` — kích hoạt user\n- `POST /api/v1/users/:id/roles` — gán roles cho user\n\n**Role Management (Story 1.5):**\n- `GET /api/v1/roles` — danh sách roles (có pagination + filter)\n- `GET /api/v1/roles/:id` — chi tiết role + policies\n- `POST /api/v1/roles` — tạo custom role (chain_owner, system_admin)\n- `PATCH /api/v1/roles/:id` — cập nhật custom role\n- `DELETE /api/v1/roles/:id` — xóa custom role\n\n**Policy Management (Story 1.5):**\n- `GET /api/v1/policies` — danh sách policies (có filter)\n- `POST /api/v1/policies` — tạo policy mới\n- `PATCH /api/v1/policies/:id` — cập nhật policy\n- `DELETE /api/v1/policies/:id` — xóa policy",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -60,6 +60,18 @@
       "value": "",
       "type": "string",
       "description": "Role ID dùng khi tạo user — lấy thủ công từ DB hoặc seed data"
+    },
+    {
+      "key": "created_role_id",
+      "value": "",
+      "type": "string",
+      "description": "Custom role ID vừa tạo từ POST /roles — tự động set bởi test script"
+    },
+    {
+      "key": "created_policy_id",
+      "value": "",
+      "type": "string",
+      "description": "Policy ID vừa tạo từ POST /policies — tự động set bởi test script"
     }
   ],
   "item": [
@@ -72,7 +84,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -80,8 +95,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/sign-up",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "sign-up"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "sign-up"
+              ]
             },
             "description": "Đăng ký user mới bằng email/password.\n\n**Tạo:** User record + Account record (credential provider) trong một DB transaction.\n\n**Validation:**\n- `email`: email hợp lệ\n- `password`: tối thiểu 8 ký tự, có chữ hoa, chữ thường, và chữ số\n- `name`: string không rỗng\n- `tenantId`: UUID hợp lệ\n\n**Lưu ý:** Điền `tenant_id` variable trước (lấy từ GET /auth/session của admin)."
           },
@@ -130,7 +152,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -138,8 +163,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/sign-in",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "sign-in"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "sign-in"
+              ]
             },
             "description": "Đăng nhập bằng email/password.\n\n**Trả về:** HttpOnly cookie `session_token` (7 ngày) + `{ success: true }`.\nSession được lưu trong bảng `sessions` của DB.\n\n**Lưu ý:** `tenantId` là UUID (không phải slug). Dùng Postman Cookie Jar hoặc copy `session_token` cookie thủ công.\n\n**Seed admin:** email `admin@pos-sdd.local`, password `Admin@123456`."
           },
@@ -202,8 +234,15 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/api/v1/auth/session",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "session"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "session"
+              ]
             },
             "description": "Lấy thông tin session hiện tại từ cookie `session_token`.\n\n**Yêu cầu:** Cookie `session_token` (tự động gửi qua Postman Cookie Jar nếu đã Sign In).\n\n**Test script** tự động lưu `target_user_id` và `tenant_id` vào collection variables.\n\n**Trả về:** user info bao gồm roles, store assignments, và tenant context."
           },
@@ -235,8 +274,15 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/api/v1/auth/sign-out",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "sign-out"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "sign-out"
+              ]
             },
             "description": "Đăng xuất — xóa session khỏi DB, clear cookie `session_token`, ghi audit log LOGOUT.\n\n**Idempotent:** Gọi khi không có session vẫn trả về 200 OK.\n\n**Yêu cầu:** Cookie `session_token` (gửi tự động qua Postman Cookie Jar)."
           },
@@ -284,7 +330,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -292,8 +341,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/pin-login",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "pin-login"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "pin-login"
+              ]
             },
             "description": "Đăng nhập bằng PIN — dành cho POS/KDS terminals.\n\n**Verify PIN** bằng bcrypt, phát hành JWT token (24h expiry).\n\n**Test script** tự động lưu JWT token vào collection variable `jwt_token`.\n\n**Validation:**\n- `pin`: 4-8 chữ số\n- `tenantSlug`: slug của tenant (ví dụ: `pos-sdd-demo`)\n- `email`: email hợp lệ"
           },
@@ -323,7 +379,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -331,8 +390,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/pin-login",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "pin-login"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "pin-login"
+              ]
             },
             "description": "Test case: PIN sai — expect 401 Unauthorized."
           }
@@ -342,7 +408,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -350,8 +419,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/pin-login",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "pin-login"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "pin-login"
+              ]
             },
             "description": "Test case: PIN format không hợp lệ (chứa chữ) — expect 400 Bad Request từ ValidationPipe."
           }
@@ -361,8 +437,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -370,8 +452,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/set-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "set-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "set-pin"
+              ]
             },
             "description": "Đặt PIN cho user hiện tại (xác thực qua JWT Bearer token).\n\n**AuthModeGuard:** Kiểm tra session cookie trước, fallback JWT — cả 2 cách đều được hỗ trợ.\n\n**Validation:**\n- `pin`: 4-8 chữ số"
           },
@@ -389,7 +478,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -397,8 +489,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/set-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "set-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "set-pin"
+              ]
             },
             "description": "Đặt PIN cho user hiện tại (xác thực qua session cookie `session_token`).\n\n**Yêu cầu:** Cookie `session_token` (gửi tự động qua Postman Cookie Jar nếu đã Sign In)."
           }
@@ -408,7 +507,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -416,8 +518,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/set-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "set-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "set-pin"
+              ]
             },
             "description": "Test case: Không có token/cookie — expect 401 Unauthorized từ AuthModeGuard."
           }
@@ -427,8 +536,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -436,8 +551,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/reset-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "reset-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset-pin"
+              ]
             },
             "description": "Admin đặt lại PIN cho user khác trong cùng tenant.\n\n**Validate:** target user phải thuộc cùng tenant với admin.\n\n**Validation:**\n- `userId`: UUID hợp lệ\n- `newPin`: 4-8 chữ số\n\n**Điền `target_user_id`:** Tự động set bởi GET /auth/session test script."
           },
@@ -455,8 +577,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -464,8 +592,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/reset-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "reset-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset-pin"
+              ]
             },
             "description": "Test case: Reset PIN cho user thuộc tenant khác — expect 403 Forbidden hoặc 404 Not Found."
           }
@@ -481,7 +616,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -489,8 +627,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/pin-login",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "pin-login"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "pin-login"
+              ]
             },
             "description": "Test case: Email không tồn tại trong tenant — expect 401 (không expose chi tiết user not found)."
           }
@@ -500,7 +645,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -508,8 +656,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/pin-login",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "pin-login"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "pin-login"
+              ]
             },
             "description": "Test case: Tenant slug không tồn tại — expect 401."
           }
@@ -519,7 +674,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -527,8 +685,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/sign-in",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "sign-in"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "sign-in"
+              ]
             },
             "description": "Test case: Password sai — expect 401 Unauthorized."
           }
@@ -538,7 +703,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -546,8 +714,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/sign-up",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "sign-up"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "sign-up"
+              ]
             },
             "description": "Test case: Email đã được đăng ký — expect 409 Conflict."
           }
@@ -559,8 +734,15 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/api/v1/auth/session",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "session"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "session"
+              ]
             },
             "description": "Test case: GET session không có cookie — expect 401 Unauthorized.\n\n**Lưu ý:** Tắt Postman Cookie Jar hoặc dùng incognito environment để test."
           }
@@ -570,8 +752,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -579,8 +767,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/set-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "set-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "set-pin"
+              ]
             },
             "description": "Test case: PIN chứa chữ cái — expect 400 Bad Request."
           }
@@ -590,8 +785,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -599,8 +800,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/set-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "set-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "set-pin"
+              ]
             },
             "description": "Test case: PIN quá ngắn (3 chữ số, tối thiểu là 4) — expect 400 Bad Request."
           }
@@ -610,8 +818,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -619,8 +833,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/set-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "set-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "set-pin"
+              ]
             },
             "description": "Test case: PIN quá dài (9 chữ số, tối đa là 8) — expect 400 Bad Request."
           }
@@ -630,8 +851,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -639,8 +866,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/reset-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "reset-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset-pin"
+              ]
             },
             "description": "Test case: userId không phải UUID hợp lệ — expect 400 Bad Request từ ValidationPipe (@IsUUID decorator)."
           }
@@ -678,8 +912,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -687,8 +927,14 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/users",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "users"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ]
             },
             "description": "Tạo user mới trong tenant.\n\n**Body:**\n- `email`: required, email hợp lệ, unique trong tenant\n- `name`: required, tối thiểu 2 ký tự\n- `pin`: optional, 4-6 chữ số\n- `roleIds`: required, array UUID, tối thiểu 1 item\n\n**Lưu ý:** Điền `role_id` variable trước (lấy từ seed data).\n\n**Test script** tự động lưu `created_user_id`."
           },
@@ -724,8 +970,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -733,8 +985,14 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/users",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "users"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ]
             },
             "description": "Test case: Email đã tồn tại trong tenant — expect 409 Conflict."
           }
@@ -744,8 +1002,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -753,8 +1017,14 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/users",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "users"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ]
             },
             "description": "Test case: PIN chứa chữ cái — expect 400 Bad Request (ValidationPipe, regex `/^\\d{4,6}$/`)."
           }
@@ -784,18 +1054,45 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/api/v1/users?page=1&limit=20",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "users"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ],
               "query": [
-                { "key": "page", "value": "1" },
-                { "key": "limit", "value": "20" },
-                { "key": "search", "value": "", "disabled": true },
-                { "key": "roleId", "value": "", "disabled": true },
-                { "key": "isActive", "value": "", "disabled": true }
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "roleId",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "isActive",
+                  "value": "",
+                  "disabled": true
+                }
               ]
             },
             "description": "Lấy danh sách users với pagination và filters.\n\n**Query params (tất cả optional):**\n- `page`: default 1, min 1\n- `limit`: default 20, min 1, max 100\n- `search`: tìm theo name hoặc email (ILIKE)\n- `roleId`: lọc theo role UUID\n- `isActive`: lọc theo trạng thái (`true` / `false`)\n\n**Tenant isolation:** Chỉ trả về users thuộc cùng tenant."
@@ -814,14 +1111,26 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/api/v1/users?search=admin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "users"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ],
               "query": [
-                { "key": "search", "value": "admin" }
+                {
+                  "key": "search",
+                  "value": "admin"
+                }
               ]
             },
             "description": "Tìm kiếm users theo tên hoặc email (ILIKE, case-insensitive)."
@@ -832,14 +1141,26 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/api/v1/users?isActive=true",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "users"],
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users"
+              ],
               "query": [
-                { "key": "isActive", "value": "true" }
+                {
+                  "key": "isActive",
+                  "value": "true"
+                }
               ]
             },
             "description": "Lọc chỉ lấy users đang active (`isActive=true`)."
@@ -869,12 +1190,22 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/api/v1/users/{{created_user_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "users", "{{created_user_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{created_user_id}}"
+              ]
             },
             "description": "Lấy chi tiết 1 user kèm roles và store_assignments.\n\n**Lưu ý:** `pin_hash` và `password_hash` KHÔNG xuất hiện trong response — dùng `hasPIN: boolean` thay thế."
           },
@@ -914,8 +1245,14 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -923,8 +1260,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/users/{{created_user_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "users", "{{created_user_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{created_user_id}}"
+              ]
             },
             "description": "Cập nhật thông tin user (tên hoặc email).\n\n**Body (partial update — tất cả optional):**\n- `name`: tối thiểu 2 ký tự\n- `email`: email hợp lệ, unique trong tenant\n\n**KHÔNG cho phép update:** `pin_hash`, `password_hash`, `tenant_id`, `is_active`.\n\n**Audit log:** Ghi `UPDATE` action với `old_data` và `new_data`."
           },
@@ -968,12 +1312,23 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/api/v1/users/{{created_user_id}}/deactivate",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "users", "{{created_user_id}}", "deactivate"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{created_user_id}}",
+                "deactivate"
+              ]
             },
             "description": "Vô hiệu hóa user:\n- `is_active = false`\n- Xóa tất cả sessions hiện tại của user\n- Ghi audit log với `deactivated_by`\n\n**Bảo vệ:** Không thể self-deactivate (userId === adminUserId)."
           },
@@ -1003,12 +1358,23 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/api/v1/users/{{target_user_id}}/deactivate",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "users", "{{target_user_id}}", "deactivate"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{target_user_id}}",
+                "deactivate"
+              ]
             },
             "description": "Test case: Admin cố self-deactivate — expect 400 Bad Request.\n\n**Lưu ý:** `target_user_id` phải trùng với userId của token đang dùng."
           }
@@ -1032,12 +1398,23 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "url": {
               "raw": "{{base_url}}/api/v1/users/{{created_user_id}}/activate",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "users", "{{created_user_id}}", "activate"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{created_user_id}}",
+                "activate"
+              ]
             },
             "description": "Kích hoạt lại user đã bị deactivate.\n\n- `is_active = true`\n- Ghi audit log với `activated_by`"
           },
@@ -1055,8 +1432,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1064,11 +1447,1117 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/reset-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "reset-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset-pin"
+              ]
             },
             "description": "Reset PIN cho user vừa tạo — dùng endpoint `/auth/reset-pin` đã có từ Story 1.3.\n\n**Lưu ý:** Story 1.4 KHÔNG tạo thêm PIN endpoints — FE gọi `/api/v1/auth/reset-pin` từ User Management UI."
           }
+        },
+        {
+          "name": "Assign Roles to User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Assign roles OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('Response has data wrapper', () => pm.expect(body).to.have.property('data'));",
+                  "    pm.test('Response has userId', () => pm.expect(body.data).to.have.property('userId'));",
+                  "    pm.test('Response has roles array', () => pm.expect(body.data.roles).to.be.an('array'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roleIds\": [\"{{role_id}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{created_user_id}}/roles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{created_user_id}}",
+                "roles"
+              ]
+            },
+            "description": "Gan roles cho user — thay the toan bo roles hien tai.\n\n**Yeu cau role:** chain_owner hoac system_admin (code review fix P-1).\n\n**Body:** roleIds: required, array UUID, toi thieu 1 item\n\n**Hanh vi:** Delete tat ca user_roles cu - createMany user_roles moi (trong transaction, atomic).\n\n**Audit log:** Ghi UPDATE, resource user_role, metadata { old_roles, new_roles }.\n\n**Luu y:** Neu user dang co active session, JWT payload KHONG tu dong cap nhat — user can re-login."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"userId\": \"uuid\",\n    \"roles\": [\n      {\"id\": \"role-uuid\", \"name\": \"cashier\"}\n    ]\n  }\n}"
+            },
+            {
+              "name": "400 — roleIds không hợp lệ",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"statusCode\": 400,\n  \"message\": \"Một hoặc nhiều roleId không hợp lệ hoặc không thuộc tenant này\"\n}"
+            },
+            {
+              "name": "404 — User không tìm thấy",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy người dùng\"\n}"
+            },
+            {
+              "name": "403 — Khong du quyen (can chain_owner hoac system_admin)",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"statusCode\": 403,\n  \"message\": \"Insufficient role permissions\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Assign Roles — Empty roleIds (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roleIds\": []\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{created_user_id}}/roles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{created_user_id}}",
+                "roles"
+              ]
+            },
+            "description": "Test case: roleIds rỗng — expect 400 Bad Request (ArrayMinSize(1))."
+          }
+        },
+        {
+          "name": "Assign Roles — Invalid UUID (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roleIds\": [\"not-a-valid-uuid\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{created_user_id}}/roles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "users",
+                "{{created_user_id}}",
+                "roles"
+              ]
+            },
+            "description": "Test case: roleId không phải UUID hợp lệ — expect 400 Bad Request (IsUUID validator)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Role Management Routes (/api/v1/roles/*)",
+      "description": "Role Management CRUD — Story 1.5 (FR53).\n\n**Yêu cầu xác thực:** AuthModeGuard — session cookie hoặc JWT Bearer.\n\n**Phân quyền tạo/sửa/xóa:** Chỉ `chain_owner` hoặc `system_admin` (RoleGuard).\n\n**System roles (6 roles):** cashier, kitchen, shift_lead, store_manager, chain_owner, system_admin — KHÔNG thể sửa/xóa.\n\n**Custom roles:** `is_system = false` — có thể CRUD tự do.",
+      "item": [
+        {
+          "name": "List Roles",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('List roles OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('Response has data array', () => pm.expect(body.data).to.be.an('array'));",
+                  "    pm.test('Response has meta pagination', () => {",
+                  "        pm.expect(body.meta).to.have.property('page');",
+                  "        pm.expect(body.meta).to.have.property('limit');",
+                  "        pm.expect(body.meta).to.have.property('total');",
+                  "    });",
+                  "    if (body.data.length > 0) {",
+                  "        pm.test('Role has usersCount', () => pm.expect(body.data[0]).to.have.property('usersCount'));",
+                  "        pm.test('Role has isSystem', () => pm.expect(body.data[0]).to.have.property('isSystem'));",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "roles"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "search",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "isSystem",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lấy danh sách roles với pagination và filters.\n\n**Query params (tất cả optional):**\n- `page`: default 1\n- `limit`: default 20, max 100\n- `search`: tìm theo name (ILIKE)\n- `isSystem`: lọc system roles (`true` / `false`)\n\n**Response:** `{ data: [...], meta: { page, limit, total } }` — mỗi role có `usersCount`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"uuid\",\n      \"name\": \"cashier\",\n      \"description\": \"Thu ngân\",\n      \"isSystem\": true,\n      \"permissions\": {},\n      \"usersCount\": 3,\n      \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n      \"updatedAt\": \"2024-01-01T00:00:00.000Z\"\n    }\n  ],\n  \"meta\": { \"page\": 1, \"limit\": 20, \"total\": 6 }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Roles — System roles only",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles?isSystem=true",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "roles"
+              ],
+              "query": [
+                {
+                  "key": "isSystem",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "Lọc chỉ lấy 6 system roles mặc định."
+          }
+        },
+        {
+          "name": "List Roles — Custom roles only",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles?isSystem=false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "roles"
+              ],
+              "query": [
+                {
+                  "key": "isSystem",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "Lọc chỉ lấy custom roles (`is_system = false`)."
+          }
+        },
+        {
+          "name": "Get Role by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get role OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('Response has data wrapper', () => pm.expect(body).to.have.property('data'));",
+                  "    pm.test('Role has policies array', () => pm.expect(body.data.policies).to.be.an('array'));",
+                  "    pm.test('Role has isSystem', () => pm.expect(body.data).to.have.property('isSystem'));",
+                  "    pm.test('Role has usersCount', () => pm.expect(body.data).to.have.property('usersCount'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles/{{created_role_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "roles",
+                "{{created_role_id}}"
+              ]
+            },
+            "description": "Lay chi tiet role theo ID.\n\n**Code review fix P-10:** Tra ve TAT CA policies lien ket (bao gom ca inactive, khong filter is_active), giup admin xem day du cau hinh policy cua role.\n\n**Response:** role detail + policies array (active + inactive)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"name\": \"custom_role\",\n    \"description\": \"Custom role\",\n    \"isSystem\": false,\n    \"permissions\": {\"read\": true},\n    \"usersCount\": 0,\n    \"policies\": [\n      {\"id\": \"uuid\", \"action\": \"discount\", \"resource\": \"order\", \"limit\": 10, \"overrideRole\": \"shift_lead\", \"isActive\": true}\n    ],\n    \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n    \"updatedAt\": \"2024-01-01T00:00:00.000Z\"\n  }\n}"
+            },
+            {
+              "name": "404 — Không tìm thấy",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy vai trò\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Custom Role",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Create role (201)', () => pm.expect(pm.response.code).to.equal(201));",
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    if (body.data && body.data.id) {",
+                  "        pm.collectionVariables.set('created_role_id', body.data.id);",
+                  "        console.log('created_role_id saved:', body.data.id);",
+                  "    }",
+                  "    pm.test('isSystem = false', () => pm.expect(body.data.isSystem).to.be.false);",
+                  "    pm.test('Response has data wrapper', () => pm.expect(body).to.have.property('data'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"floor_supervisor\",\n  \"description\": \"Giám sát sàn bán hàng\",\n  \"permissions\": {\n    \"orders\": [\"read\", \"update\"],\n    \"tables\": [\"read\", \"update\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "roles"
+              ]
+            },
+            "description": "Tạo custom role mới.\n\n**Yêu cầu role:** `chain_owner` hoặc `system_admin` (RoleGuard).\n\n**Body:**\n- `name`: required, tối thiểu 2 ký tự, unique trong tenant\n- `description`: optional\n- `permissions`: optional, object JSON\n\n**Test script** tự động lưu `created_role_id`.\n\n**Không thể tạo:** role trùng tên với role đã có."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"name\": \"floor_supervisor\",\n    \"description\": \"Giám sát sàn bán hàng\",\n    \"isSystem\": false,\n    \"permissions\": {\"orders\": [\"read\", \"update\"]},\n    \"usersCount\": 0,\n    \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n    \"updatedAt\": \"2024-01-01T00:00:00.000Z\"\n  }\n}"
+            },
+            {
+              "name": "409 Conflict — Tên role đã tồn tại",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"Tên vai trò đã tồn tại trong tenant này\"\n}"
+            },
+            {
+              "name": "403 — Không đủ quyền",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"statusCode\": 403,\n  \"message\": \"Insufficient role permissions\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Role — Duplicate Name (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"cashier\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "roles"
+              ]
+            },
+            "description": "Test case: Tên role trùng với system role `cashier` — expect 409 Conflict."
+          }
+        },
+        {
+          "name": "Update Custom Role",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Update role OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('Response has data wrapper', () => pm.expect(body).to.have.property('data'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Giám sát sàn - cập nhật mô tả\",\n  \"permissions\": {\n    \"orders\": [\"read\", \"update\", \"cancel\"],\n    \"tables\": [\"read\", \"update\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles/{{created_role_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "roles",
+                "{{created_role_id}}"
+              ]
+            },
+            "description": "Cập nhật custom role.\n\n**Body (partial update — tất cả optional):**\n- `name`: tối thiểu 2 ký tự, unique trong tenant\n- `description`: mô tả role\n- `permissions`: JSON object\n\n**Không cho phép:** Sửa system roles (`is_system = true`) → 403 Forbidden."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"name\": \"floor_supervisor\",\n    \"description\": \"Giám sát sàn - cập nhật mô tả\",\n    \"isSystem\": false,\n    \"permissions\": {\"orders\": [\"read\", \"update\", \"cancel\"]},\n    \"usersCount\": 0\n  }\n}"
+            },
+            {
+              "name": "403 — System role blocked",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"statusCode\": 403,\n  \"message\": \"Không thể chỉnh sửa vai trò hệ thống\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update System Role (expect 403)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Cố tình sửa system role\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles/{{role_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "roles",
+                "{{role_id}}"
+              ]
+            },
+            "description": "Test case: Cố sửa system role — expect 403 Forbidden.\n\n**Lưu ý:** Điền `role_id` bằng UUID của một system role (lấy từ GET /roles?isSystem=true)."
+          }
+        },
+        {
+          "name": "Delete Custom Role",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Delete role OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Response success = true', () => pm.expect(pm.response.json().data.success).to.be.true);",
+                  "    pm.collectionVariables.set('created_role_id', '');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles/{{created_role_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "roles",
+                "{{created_role_id}}"
+              ]
+            },
+            "description": "Xóa custom role.\n\n**Điều kiện:**\n- KHÔNG cho xóa system roles → 403\n- KHÔNG cho xóa role đang có users → 409\n\n**Audit log:** Ghi `DELETE`, resource `role`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"success\": true\n  }\n}"
+            },
+            {
+              "name": "403 — System role blocked",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"statusCode\": 403,\n  \"message\": \"Không thể xóa vai trò hệ thống\"\n}"
+            },
+            {
+              "name": "409 — Role đang có users",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"Không thể xóa vai trò đang được gán cho người dùng\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Delete System Role (expect 403)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/roles/{{role_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "roles",
+                "{{role_id}}"
+              ]
+            },
+            "description": "Test case: Cố xóa system role — expect 403 Forbidden.\n\n**Lưu ý:** Điền `role_id` bằng UUID của system role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Policy Management Routes (/api/v1/policies/*)",
+      "description": "Policy Management CRUD — Story 1.5 (FR54).\n\n**Layer 3 Limit Rules:** Định nghĩa giới hạn cho từng action theo role.\n\n**Yêu cầu xác thực:** AuthModeGuard — session cookie hoặc JWT Bearer.\n\n**Phân quyền tạo/sửa/xóa:** Chỉ `chain_owner` hoặc `system_admin`.\n\n**Seed policies mặc định:**\n| Role | Action | Resource | Limit | Override |\n|------|--------|----------|-------|---------|\n| cashier | discount | order | 10% | shift_lead |\n| cashier | void | order_item | 50,000 | shift_lead |\n| shift_lead | discount | order | 20% | store_manager |\n| shift_lead | void | order_item | 200,000 | store_manager |\n| store_manager | refund | order | 500,000 | chain_owner |",
+      "item": [
+        {
+          "name": "List Policies",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('List policies OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('Response has data array', () => pm.expect(body.data).to.be.an('array'));",
+                  "    pm.test('Response has meta pagination', () => {",
+                  "        pm.expect(body.meta).to.have.property('page');",
+                  "        pm.expect(body.meta).to.have.property('total');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/policies?page=1&limit=20",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "policies"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "limit",
+                  "value": "20"
+                },
+                {
+                  "key": "role",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "action",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "resource",
+                  "value": "",
+                  "disabled": true
+                },
+                {
+                  "key": "isActive",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Lấy danh sách policies với pagination và filters.\n\n**Query params (tất cả optional):**\n- `page`, `limit`: pagination\n- `role`: lọc theo role name (vd: `cashier`)\n- `action`: lọc theo action (discount, void, refund, cancel, edit_price)\n- `resource`: lọc theo resource (order, order_item, payment)\n- `storeId`: lọc theo store UUID\n- `isActive`: lọc theo trạng thái (`true` / `false`)"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"uuid\",\n      \"tenantId\": \"tenant-uuid\",\n      \"storeId\": null,\n      \"role\": \"cashier\",\n      \"action\": \"discount\",\n      \"resource\": \"order\",\n      \"limit\": 10,\n      \"overrideRole\": \"shift_lead\",\n      \"conditions\": null,\n      \"isActive\": true,\n      \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n      \"updatedAt\": \"2024-01-01T00:00:00.000Z\"\n    }\n  ],\n  \"meta\": { \"page\": 1, \"limit\": 20, \"total\": 5 }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Policies — Filter by role",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/policies?role=cashier",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "policies"
+              ],
+              "query": [
+                {
+                  "key": "role",
+                  "value": "cashier"
+                }
+              ]
+            },
+            "description": "Lọc policies của cashier — nên trả về 2 policies (discount + void)."
+          }
+        },
+        {
+          "name": "List Policies — Filter by action",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/policies?action=discount",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "policies"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "discount"
+                }
+              ]
+            },
+            "description": "Lọc tất cả policies có action = discount."
+          }
+        },
+        {
+          "name": "Create Policy",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Create policy (201)', () => pm.expect(pm.response.code).to.equal(201));",
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    if (body.data && body.data.id) {",
+                  "        pm.collectionVariables.set('created_policy_id', body.data.id);",
+                  "        console.log('created_policy_id saved:', body.data.id);",
+                  "    }",
+                  "    pm.test('Response has data wrapper', () => pm.expect(body).to.have.property('data'));",
+                  "    pm.test('isActive = true', () => pm.expect(body.data.isActive).to.be.true);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"store_manager\",\n  \"action\": \"discount\",\n  \"resource\": \"order\",\n  \"limit\": 30,\n  \"overrideRole\": \"chain_owner\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/policies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "policies"
+              ]
+            },
+            "description": "Tao policy moi.\n\n**Body:**\n- role: required, ten role phai ton tai trong tenant\n- action: required (discount, void, refund, cancel, edit_price)\n- resource: required (order, order_item, payment)\n- storeId: optional UUID — null = ap dung tat ca stores\n- limit: optional number — null = unlimited\n- overrideRole: optional — **phai ton tai trong tenant** (code review fix P-8)\n- conditions: optional JSON object\n- isActive: optional boolean, default true\n\n**Validation:**\n- Unique constraint [tenant_id, role, action, resource, store_id]\n- role va overrideRole phai ton tai trong tenant\n\n**Side effect:** Invalidate policy cache cho tenant ngay lap tuc (code review fix P-2)."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"tenantId\": \"tenant-uuid\",\n    \"storeId\": null,\n    \"role\": \"store_manager\",\n    \"action\": \"discount\",\n    \"resource\": \"order\",\n    \"limit\": 30,\n    \"overrideRole\": \"chain_owner\",\n    \"conditions\": null,\n    \"isActive\": true\n  }\n}"
+            },
+            {
+              "name": "400 — Role không tồn tại",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"statusCode\": 400,\n  \"message\": \"Vai trò 'invalid_role' không tồn tại trong tenant này\"\n}"
+            },
+            {
+              "name": "409 — Policy trùng",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"Policy cho role, action, resource và store này đã tồn tại\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create Policy — Duplicate (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"cashier\",\n  \"action\": \"discount\",\n  \"resource\": \"order\",\n  \"limit\": 15\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/policies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "policies"
+              ]
+            },
+            "description": "Test case: Policy `cashier + discount + order` đã được seed — expect 409 Conflict."
+          }
+        },
+        {
+          "name": "Create Policy — Invalid Role (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"nonexistent_role\",\n  \"action\": \"discount\",\n  \"resource\": \"order\",\n  \"limit\": 10\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/policies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "policies"
+              ]
+            },
+            "description": "Test case: Role không tồn tại trong tenant — expect 400 Bad Request."
+          }
+        },
+        {
+          "name": "Create Policy — Invalid overrideRole (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"cashier\",\n  \"action\": \"discount\",\n  \"resource\": \"order\",\n  \"limit\": 10,\n  \"overrideRole\": \"non_existent_role\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/policies",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "policies"
+              ]
+            },
+            "description": "Tao policy voi overrideRole khong ton tai — expect 400 Bad Request.\n\nCode review fix P-8: overrideRole duoc validate ton tai trong tenant truoc khi tao policy."
+          },
+          "response": [
+            {
+              "name": "400 — overrideRole khong ton tai",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"statusCode\": 400,\n  \"message\": \"Override role 'non_existent_role' khong ton tai trong tenant nay\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update Policy",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Update policy OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Response has data wrapper', () => pm.expect(pm.response.json()).to.have.property('data'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"limit\": 35,\n  \"overrideRole\": \"chain_owner\",\n  \"isActive\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/policies/{{created_policy_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                "{{created_policy_id}}"
+              ]
+            },
+            "description": "Cập nhật policy.\n\n**Body (partial update — tất cả optional):**\n- `limit`: number hoặc null (unlimited)\n- `overrideRole`: string hoặc null\n- `conditions`: JSON object hoặc null\n- `isActive`: boolean\n\n**Audit log:** Ghi `UPDATE` với old_data và new_data.\n\n**Side effect:** Invalidate policy cache cho tenant ngay lap tuc — guards se dung policy moi trong request tiep theo (code review fix P-2)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"role\": \"store_manager\",\n    \"action\": \"discount\",\n    \"resource\": \"order\",\n    \"limit\": 35,\n    \"overrideRole\": \"chain_owner\",\n    \"isActive\": true\n  }\n}"
+            },
+            {
+              "name": "404 — Không tìm thấy",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy policy\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Deactivate Policy (set isActive=false)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/policies/{{created_policy_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                "{{created_policy_id}}"
+              ]
+            },
+            "description": "Tắt policy (soft-disable) bằng cách set `isActive = false`.\n\nPolicy bị deactivate sẽ không được PolicyLoaderInterceptor load — LimitGuard sẽ không áp dụng nó."
+          }
+        },
+        {
+          "name": "Delete Policy",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Delete policy OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Response success = true', () => pm.expect(pm.response.json().data.success).to.be.true);",
+                  "    pm.collectionVariables.set('created_policy_id', '');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/policies/{{created_policy_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "policies",
+                "{{created_policy_id}}"
+              ]
+            },
+            "description": "Xóa policy.\n\n**Audit log:** Ghi `DELETE`, resource `policy`.\n\n**Side effect:** Invalidate policy cache cho tenant ngay lap tuc (code review fix P-2)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"success\": true\n  }\n}"
+            },
+            {
+              "name": "404 — Không tìm thấy",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy policy\"\n}"
+            }
+          ]
         }
       ]
     },
@@ -1092,15 +2581,27 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"password\": \"{{admin_password}}\",\n  \"tenantId\": \"{{tenant_id}}\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/sign-in",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "sign-in"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "sign-in"
+              ]
             },
             "description": "**Lưu ý:** Nếu `tenant_id` chưa có, chạy Sign In không có tenantId trước, rồi dùng GET /auth/session để lấy tenantId, sau đó chạy lại với tenantId."
           }
@@ -1132,8 +2633,15 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/api/v1/auth/session",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "session"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "session"
+              ]
             }
           }
         },
@@ -1156,7 +2664,10 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1164,8 +2675,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/set-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "set-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "set-pin"
+              ]
             }
           }
         },
@@ -1187,8 +2705,15 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/api/v1/auth/sign-out",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "sign-out"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "sign-out"
+              ]
             }
           }
         },
@@ -1213,15 +2738,27 @@
           ],
           "request": {
             "method": "POST",
-            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"pin\": \"{{pin}}\",\n  \"tenantSlug\": \"{{tenant_slug}}\",\n  \"email\": \"{{admin_email}}\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/pin-login",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "pin-login"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "pin-login"
+              ]
             }
           }
         },
@@ -1244,8 +2781,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1253,8 +2796,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/set-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "set-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "set-pin"
+              ]
             }
           }
         },
@@ -1277,8 +2827,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{jwt_token}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -1286,8 +2842,15 @@
             },
             "url": {
               "raw": "{{base_url}}/api/v1/auth/reset-pin",
-              "host": ["{{base_url}}"],
-              "path": ["api", "v1", "auth", "reset-pin"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "api",
+                "v1",
+                "auth",
+                "reset-pin"
+              ]
             }
           }
         }

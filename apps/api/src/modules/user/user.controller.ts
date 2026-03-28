@@ -12,12 +12,15 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { AuthModeGuard } from '../../common/guards/auth-mode.guard.js';
+import { RoleGuard } from '../../common/guards/role.guard.js';
+import { Roles } from '../../common/decorators/roles.decorator.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { JwtPayload } from '../../common/types/jwt-payload.js';
 import { UserService } from './user.service.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { ListUsersQueryDto } from './dto/list-users-query.dto.js';
+import { AssignRolesDto } from './dto/assign-roles.dto.js';
 
 @Controller('users')
 export class UserController {
@@ -86,6 +89,19 @@ export class UserController {
     @CurrentUser() user: JwtPayload,
   ) {
     const result = await this.userService.activateUser(id, user.tenantId, user.userId);
+    return { data: result };
+  }
+
+  @Post(':id/roles')
+  @UseGuards(AuthModeGuard, RoleGuard)
+  @Roles('chain_owner', 'system_admin')
+  @HttpCode(HttpStatus.OK)
+  async assignRoles(
+    @Param('id') id: string,
+    @Body() dto: AssignRolesDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const result = await this.userService.assignRoles(id, user.tenantId, user.userId, dto);
     return { data: result };
   }
 }

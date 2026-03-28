@@ -11,6 +11,7 @@ import { generateId } from '@pos-sdd/shared';
 import type { CreateUserDto } from './dto/create-user.dto.js';
 import type { UpdateUserDto } from './dto/update-user.dto.js';
 import type { ListUsersQueryDto } from './dto/list-users-query.dto.js';
+import type { AssignRolesDto } from './dto/assign-roles.dto.js';
 
 export interface UserResponse {
   id: string;
@@ -331,6 +332,76 @@ export class UserService {
     return {
       data: users.map((u) => this._mapUserResponse(u)),
       meta: { page, limit, total },
+    };
+  }
+
+  async assignRoles(
+    userId: string,
+    tenantId: string,
+    adminUserId: string,
+    dto: AssignRolesDto,
+  ): Promise<{ userId: string; roles: Array<{ id: string; name: string }> }> {
+    const uniqueRoleIds = [...new Set(dto.roleIds)];
+
+    await this.db.$transaction(async (tx) => {
+      // 1. Validate user tồn tại và cùng tenant
+      const user = await tx.user.findFirst({
+        where: { id: userId, tenant_id: tenantId },
+        select: { id: true },
+      });
+      if (!user) throw new NotFoundException('Không tìm thấy người dùng');
+
+      // 2. Validate tất cả roleIds tồn tại và cùng tenant
+      const roles = await tx.role.findMany({
+        where: { id: { in: uniqueRoleIds }, tenant_id: tenantId },
+        select: { id: true },
+      });
+      if (roles.length !== uniqueRoleIds.length) {
+        throw new BadRequestException('Một hoặc nhiều roleId không hợp lệ hoặc không thuộc tenant này');
+      }
+
+      // 3. Lấy old_roles để audit log
+      const oldUserRoles = await tx.userRole.findMany({
+        where: { user_id: userId },
+        select: { role_id: true },
+      });
+      const oldRoleIds = oldUserRoles.map((ur: { role_id: string }) => ur.role_id);
+
+      // 4. Transaction: delete tất cả user_roles cũ → createMany user_roles mới
+      await tx.userRole.deleteMany({ where: { user_id: userId } });
+      await tx.userRole.createMany({
+        data: uniqueRoleIds.map((roleId) => ({
+          id: generateId(),
+          user_id: userId,
+          role_id: roleId,
+        })),
+      });
+
+      // 5. Ghi audit log
+      await tx.auditLog.create({
+        data: {
+          id: generateId(),
+          tenant_id: tenantId,
+          user_id: adminUserId,
+          action: 'UPDATE',
+          resource: 'user_role',
+          resource_id: userId,
+          old_data: { roles: oldRoleIds },
+          new_data: { roles: uniqueRoleIds },
+          metadata: { old_roles: oldRoleIds, new_roles: uniqueRoleIds },
+        },
+      });
+    });
+
+    // Lấy roles mới để trả về
+    const updatedUserRoles = await this.db.userRole.findMany({
+      where: { user_id: userId },
+      include: { role: { select: { id: true, name: true } } },
+    });
+
+    return {
+      userId,
+      roles: updatedUserRoles.map((ur: { role: { id: string; name: string } }) => ur.role),
     };
   }
 

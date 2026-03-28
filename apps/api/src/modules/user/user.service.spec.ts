@@ -46,7 +46,7 @@ const mockPrisma = {
     count: vi.fn(),
     findMany: vi.fn(),
   },
-  userRole: { createMany: vi.fn() },
+  userRole: { createMany: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
   session: { deleteMany: vi.fn() },
   role: { findMany: vi.fn() },
   auditLog: { create: vi.fn() },
@@ -428,6 +428,74 @@ describe('UserService', () => {
 
       const result = await userService.getUserById('user-id-123', 'other-tenant');
       expect(result).toBeNull();
+    });
+  });
+
+  // ──────────── assignRoles ────────────
+  describe('assignRoles', () => {
+    it('happy path: gán roles thành công', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+      mockPrisma.role.findMany.mockResolvedValueOnce([{ id: 'role-id-1' }, { id: 'role-id-2' }]);
+      mockPrisma.userRole.findMany.mockResolvedValueOnce([{ role_id: 'role-id-old' }]);
+      mockPrisma.userRole.deleteMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.userRole.createMany.mockResolvedValueOnce({ count: 2 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+      // findMany sau transaction để lấy roles mới
+      mockPrisma.userRole.findMany.mockResolvedValueOnce([
+        { role: { id: 'role-id-1', name: 'cashier' } },
+        { role: { id: 'role-id-2', name: 'shift_lead' } },
+      ]);
+
+      const result = await userService.assignRoles(
+        'user-id-123', 'tenant-abc', 'admin-id',
+        { roleIds: ['role-id-1', 'role-id-2'] },
+      );
+
+      expect(result.userId).toBe('user-id-123');
+      expect(result.roles).toHaveLength(2);
+      expect(mockPrisma.userRole.deleteMany).toHaveBeenCalledWith({ where: { user_id: 'user-id-123' } });
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ action: 'UPDATE', resource: 'user_role' }),
+        }),
+      );
+    });
+
+    it('throw NotFoundException nếu user không tồn tại', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        userService.assignRoles('non-existent', 'tenant-abc', 'admin-id', { roleIds: ['role-id-1'] }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throw BadRequestException nếu roleId không hợp lệ', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+      mockPrisma.role.findMany.mockResolvedValueOnce([]); // 0 roles found, nhưng cần 1
+
+      await expect(
+        userService.assignRoles('user-id-123', 'tenant-abc', 'admin-id', { roleIds: ['invalid-role-id'] }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('audit log ghi nhận old_roles và new_roles', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+      mockPrisma.role.findMany.mockResolvedValueOnce([{ id: 'role-id-new' }]);
+      mockPrisma.userRole.findMany.mockResolvedValueOnce([{ role_id: 'role-id-old' }]);
+      mockPrisma.userRole.deleteMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.userRole.createMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+      mockPrisma.userRole.findMany.mockResolvedValueOnce([{ role: { id: 'role-id-new', name: 'manager' } }]);
+
+      await userService.assignRoles('user-id-123', 'tenant-abc', 'admin-id', { roleIds: ['role-id-new'] });
+
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            metadata: { old_roles: ['role-id-old'], new_roles: ['role-id-new'] },
+          }),
+        }),
+      );
     });
   });
 
