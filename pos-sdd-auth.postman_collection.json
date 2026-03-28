@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "pos-sdd-auth-collection",
     "name": "POS-SDD Authentication API",
-    "description": "Postman collection cho Story 1.3 — Custom Auth (NestJS AuthService + Prisma) & PIN Login\n\n**Base URL:** `http://localhost:3001/api/v1`\n\n**Seed data mặc định:**\n- Email: `admin@pos-sdd.local`\n- Password: `Admin@123456`\n- PIN: `123456`\n- Tenant slug: `pos-sdd-demo`\n- Tenant ID: (lấy từ GET /auth/session sau khi sign-in)\n\n**Auth modes:**\n1. Session (HttpOnly cookie `session_token`) — email/password login\n2. JWT Bearer — PIN login cho POS/KDS",
+    "description": "Postman collection cho Story 1.3–1.4 — Custom Auth & User Account Management CRUD\n\n**Base URL:** `http://localhost:3001/api/v1`\n\n**Seed data mặc định:**\n- Email: `admin@pos-sdd.local`\n- Password: `Admin@123456`\n- PIN: `123456`\n- Tenant slug: `pos-sdd-demo`\n- Tenant ID: (lấy từ GET /auth/session sau khi sign-in)\n\n**Auth modes:**\n1. Session (HttpOnly cookie `session_token`) — email/password login\n2. JWT Bearer — PIN login cho POS/KDS\n\n**User Management (Story 1.4):**\n- `POST /api/v1/users` — tạo user mới\n- `GET /api/v1/users` — danh sách users (có pagination + filter)\n- `GET /api/v1/users/:id` — chi tiết user\n- `PATCH /api/v1/users/:id` — cập nhật user\n- `POST /api/v1/users/:id/deactivate` — vô hiệu hóa user\n- `POST /api/v1/users/:id/activate` — kích hoạt user",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -48,6 +48,18 @@
       "value": "",
       "type": "string",
       "description": "User ID dùng cho reset-pin — tự động set sau khi GET /auth/session"
+    },
+    {
+      "key": "created_user_id",
+      "value": "",
+      "type": "string",
+      "description": "User ID vừa tạo từ POST /users — tự động set bởi test script"
+    },
+    {
+      "key": "role_id",
+      "value": "",
+      "type": "string",
+      "description": "Role ID dùng khi tạo user — lấy thủ công từ DB hoặc seed data"
     }
   ],
   "item": [
@@ -636,7 +648,432 @@
       ]
     },
     {
-      "name": "4. Workflow: Full Auth Flow",
+      "name": "4. User Management Routes (/api/v1/users/*)",
+      "description": "User Account Management CRUD — Story 1.4 (FR52).\n\n**Yêu cầu xác thực:** AuthModeGuard — session cookie hoặc JWT Bearer.\n\n**Tenant isolation:** API tự động dùng `tenantId` từ token/session — không cần truyền trong body.\n\n**Sensitive data:** Response KHÔNG chứa `pin_hash`/`password_hash` — dùng `hasPIN: boolean`.\n\n**Ghi chú `role_id`:** Lấy từ seed data trong DB (6 roles mặc định: cashier, kitchen, shift_lead, store_manager, chain_owner, system_admin).",
+      "item": [
+        {
+          "name": "Create User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Create user successful (201)', () => pm.expect(pm.response.code).to.equal(201));",
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    if (body.data && body.data.id) {",
+                  "        pm.collectionVariables.set('created_user_id', body.data.id);",
+                  "        console.log('created_user_id saved:', body.data.id);",
+                  "    }",
+                  "    pm.test('Response has data wrapper', () => pm.expect(body).to.have.property('data'));",
+                  "    pm.test('hasPIN field present', () => pm.expect(body.data).to.have.property('hasPIN'));",
+                  "    pm.test('pin_hash NOT in response', () => pm.expect(body.data).to.not.have.property('pin_hash'));",
+                  "    pm.test('password_hash NOT in response', () => pm.expect(body.data).to.not.have.property('password_hash'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newstaff@pos-sdd.local\",\n  \"name\": \"New Staff\",\n  \"pin\": \"1234\",\n  \"roleIds\": [\"{{role_id}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"]
+            },
+            "description": "Tạo user mới trong tenant.\n\n**Body:**\n- `email`: required, email hợp lệ, unique trong tenant\n- `name`: required, tối thiểu 2 ký tự\n- `pin`: optional, 4-6 chữ số\n- `roleIds`: required, array UUID, tối thiểu 1 item\n\n**Lưu ý:** Điền `role_id` variable trước (lấy từ seed data).\n\n**Test script** tự động lưu `created_user_id`."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"email\": \"newstaff@pos-sdd.local\",\n    \"name\": \"New Staff\",\n    \"isActive\": true,\n    \"hasPIN\": true,\n    \"tenantId\": \"tenant-uuid\",\n    \"roles\": [{\"id\": \"role-uuid\", \"name\": \"cashier\"}],\n    \"storeAssignments\": [],\n    \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n    \"updatedAt\": \"2024-01-01T00:00:00.000Z\"\n  }\n}"
+            },
+            {
+              "name": "409 Conflict — Email đã tồn tại",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"Email đã được sử dụng trong tenant này\"\n}"
+            },
+            {
+              "name": "400 — roleIds không hợp lệ",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"statusCode\": 400,\n  \"message\": \"Một hoặc nhiều roleId không hợp lệ hoặc không thuộc tenant này\"\n}"
+            },
+            {
+              "name": "401 — Chưa xác thực",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"statusCode\": 401,\n  \"message\": \"Yêu cầu xác thực\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Create User — Duplicate Email (expect 409)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{admin_email}}\",\n  \"name\": \"Duplicate Admin\",\n  \"roleIds\": [\"{{role_id}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"]
+            },
+            "description": "Test case: Email đã tồn tại trong tenant — expect 409 Conflict."
+          }
+        },
+        {
+          "name": "Create User — Invalid PIN Format (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test2@pos-sdd.local\",\n  \"name\": \"Test User\",\n  \"pin\": \"abc\",\n  \"roleIds\": [\"{{role_id}}\"]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"]
+            },
+            "description": "Test case: PIN chứa chữ cái — expect 400 Bad Request (ValidationPipe, regex `/^\\d{4,6}$/`)."
+          }
+        },
+        {
+          "name": "List Users",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('List users OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('Response has data array', () => pm.expect(body.data).to.be.an('array'));",
+                  "    pm.test('Response has meta pagination', () => {",
+                  "        pm.expect(body.meta).to.have.property('page');",
+                  "        pm.expect(body.meta).to.have.property('limit');",
+                  "        pm.expect(body.meta).to.have.property('total');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users?page=1&limit=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "search", "value": "", "disabled": true },
+                { "key": "roleId", "value": "", "disabled": true },
+                { "key": "isActive", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Lấy danh sách users với pagination và filters.\n\n**Query params (tất cả optional):**\n- `page`: default 1, min 1\n- `limit`: default 20, min 1, max 100\n- `search`: tìm theo name hoặc email (ILIKE)\n- `roleId`: lọc theo role UUID\n- `isActive`: lọc theo trạng thái (`true` / `false`)\n\n**Tenant isolation:** Chỉ trả về users thuộc cùng tenant."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"uuid\",\n      \"email\": \"admin@pos-sdd.local\",\n      \"name\": \"System Admin\",\n      \"isActive\": true,\n      \"hasPIN\": true,\n      \"tenantId\": \"tenant-uuid\",\n      \"roles\": [{\"id\": \"role-uuid\", \"name\": \"system_admin\"}],\n      \"storeAssignments\": []\n    }\n  ],\n  \"meta\": {\n    \"page\": 1,\n    \"limit\": 20,\n    \"total\": 1\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "List Users — Search by name",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users?search=admin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"],
+              "query": [
+                { "key": "search", "value": "admin" }
+              ]
+            },
+            "description": "Tìm kiếm users theo tên hoặc email (ILIKE, case-insensitive)."
+          }
+        },
+        {
+          "name": "List Users — Filter active only",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users?isActive=true",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"],
+              "query": [
+                { "key": "isActive", "value": "true" }
+              ]
+            },
+            "description": "Lọc chỉ lấy users đang active (`isActive=true`)."
+          }
+        },
+        {
+          "name": "Get User by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get user OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('Response has data wrapper', () => pm.expect(body).to.have.property('data'));",
+                  "    pm.test('hasPIN field present', () => pm.expect(body.data).to.have.property('hasPIN'));",
+                  "    pm.test('pin_hash NOT in response', () => pm.expect(body.data).to.not.have.property('pin_hash'));",
+                  "    pm.test('Has roles array', () => pm.expect(body.data.roles).to.be.an('array'));",
+                  "    pm.test('Has storeAssignments array', () => pm.expect(body.data.storeAssignments).to.be.an('array'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{created_user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{created_user_id}}"]
+            },
+            "description": "Lấy chi tiết 1 user kèm roles và store_assignments.\n\n**Lưu ý:** `pin_hash` và `password_hash` KHÔNG xuất hiện trong response — dùng `hasPIN: boolean` thay thế."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"email\": \"newstaff@pos-sdd.local\",\n    \"name\": \"New Staff\",\n    \"isActive\": true,\n    \"hasPIN\": true,\n    \"tenantId\": \"tenant-uuid\",\n    \"roles\": [{\"id\": \"role-uuid\", \"name\": \"cashier\"}],\n    \"storeAssignments\": [],\n    \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n    \"updatedAt\": \"2024-01-01T00:00:00.000Z\"\n  }\n}"
+            },
+            {
+              "name": "404 — Không tìm thấy",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy người dùng\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Update User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Update user OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('Response has data wrapper', () => pm.expect(body).to.have.property('data'));",
+                  "    pm.test('Name updated', () => pm.expect(body.data.name).to.equal('Updated Staff Name'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Staff Name\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{created_user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{created_user_id}}"]
+            },
+            "description": "Cập nhật thông tin user (tên hoặc email).\n\n**Body (partial update — tất cả optional):**\n- `name`: tối thiểu 2 ký tự\n- `email`: email hợp lệ, unique trong tenant\n\n**KHÔNG cho phép update:** `pin_hash`, `password_hash`, `tenant_id`, `is_active`.\n\n**Audit log:** Ghi `UPDATE` action với `old_data` và `new_data`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"name\": \"Updated Staff Name\",\n    \"email\": \"newstaff@pos-sdd.local\",\n    \"isActive\": true,\n    \"hasPIN\": true,\n    \"roles\": [{\"id\": \"role-uuid\", \"name\": \"cashier\"}],\n    \"storeAssignments\": []\n  }\n}"
+            },
+            {
+              "name": "409 — Email conflict",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"Email đã được sử dụng trong tenant này\"\n}"
+            },
+            {
+              "name": "404 — User không tồn tại",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy người dùng\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Deactivate User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Deactivate user OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Response success = true', () => pm.expect(pm.response.json().data.success).to.be.true);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{created_user_id}}/deactivate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{created_user_id}}", "deactivate"]
+            },
+            "description": "Vô hiệu hóa user:\n- `is_active = false`\n- Xóa tất cả sessions hiện tại của user\n- Ghi audit log với `deactivated_by`\n\n**Bảo vệ:** Không thể self-deactivate (userId === adminUserId)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"success\": true\n  }\n}"
+            },
+            {
+              "name": "400 — Self-deactivation blocked",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"statusCode\": 400,\n  \"message\": \"Không thể vô hiệu hóa tài khoản của chính mình\"\n}"
+            },
+            {
+              "name": "404 — User không tìm thấy",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy người dùng\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Deactivate User — Self-deactivation (expect 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{target_user_id}}/deactivate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{target_user_id}}", "deactivate"]
+            },
+            "description": "Test case: Admin cố self-deactivate — expect 400 Bad Request.\n\n**Lưu ý:** `target_user_id` phải trùng với userId của token đang dùng."
+          }
+        },
+        {
+          "name": "Activate User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Activate user OK (200)', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Response success = true', () => pm.expect(pm.response.json().data.success).to.be.true);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{created_user_id}}/activate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{created_user_id}}", "activate"]
+            },
+            "description": "Kích hoạt lại user đã bị deactivate.\n\n- `is_active = true`\n- Ghi audit log với `activated_by`"
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"success\": true\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "Reset PIN for User (via /auth/reset-pin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"userId\": \"{{created_user_id}}\",\n  \"newPin\": \"5678\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/reset-pin",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "reset-pin"]
+            },
+            "description": "Reset PIN cho user vừa tạo — dùng endpoint `/auth/reset-pin` đã có từ Story 1.3.\n\n**Lưu ý:** Story 1.4 KHÔNG tạo thêm PIN endpoints — FE gọi `/api/v1/auth/reset-pin` từ User Management UI."
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Workflow: Full Auth Flow",
       "description": "Thứ tự chạy để test full flow:\n1. Sign In (email/password) → nhận session cookie (HttpOnly, qua Cookie Jar)\n2. GET Session → lấy user info + lưu tenant_id và target_user_id\n3. Set PIN (dùng session cookie)\n4. Sign Out → xóa session\n5. PIN Login → nhận JWT token\n6. Set PIN (dùng JWT) → verify JWT auth hoạt động\n7. Reset PIN (admin) → verify admin có thể reset PIN",
       "item": [
         {

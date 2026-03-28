@@ -1,0 +1,536 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import {
+  ConflictException,
+  NotFoundException,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
+import { UserService } from './user.service.js';
+
+// Mock @pos-sdd/shared
+vi.mock('@pos-sdd/shared', () => ({
+  generateId: () => 'test-uuid-123',
+  hashPin: async (pin: string) => `hashed:${pin}`,
+  verifyPin: async (pin: string, hash: string) => hash === `hashed:${pin}`,
+}));
+
+const mockRole = { id: 'role-id-1', name: 'cashier', tenant_id: 'tenant-abc' };
+
+const mockUserRow = {
+  id: 'user-id-123',
+  tenant_id: 'tenant-abc',
+  email: 'test@example.com',
+  name: 'Test User',
+  pin_hash: 'hashed:1234',
+  is_active: true,
+  created_at: new Date('2024-01-01'),
+  updated_at: new Date('2024-01-01'),
+  user_roles: [{ role: { id: 'role-id-1', name: 'cashier' } }],
+  store_assignments: [
+    {
+      id: 'assign-id-1',
+      store_id: 'store-id-1',
+      scope_type: 'SINGLE_STORE',
+      store: { id: 'store-id-1', name: 'Store 1' },
+    },
+  ],
+};
+
+// mockPrisma dùng chung cho cả direct calls và transaction calls
+const mockPrisma = {
+  user: {
+    findFirst: vi.fn(),
+    findUnique: vi.fn(),
+    create: vi.fn(),
+    update: vi.fn(),
+    count: vi.fn(),
+    findMany: vi.fn(),
+  },
+  userRole: { createMany: vi.fn() },
+  session: { deleteMany: vi.fn() },
+  role: { findMany: vi.fn() },
+  auditLog: { create: vi.fn() },
+  $transaction: vi.fn((fn: (tx: typeof mockPrisma) => Promise<unknown>) => fn(mockPrisma)),
+};
+
+describe('UserService', () => {
+  let userService: UserService;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    userService = new UserService(mockPrisma as never);
+  });
+
+  // ──────────── createUser ────────────
+  describe('createUser', () => {
+    it('happy path: tạo user mới với PIN', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null); // email không tồn tại
+      mockPrisma.role.findMany.mockResolvedValueOnce([mockRole]); // roles hợp lệ
+      mockPrisma.user.create.mockResolvedValueOnce({
+        id: 'user-id-123',
+        tenant_id: 'tenant-abc',
+        email: 'new@example.com',
+        name: 'New User',
+        is_active: true,
+      });
+      mockPrisma.userRole.createMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+      // getUserById call
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ ...mockUserRow, email: 'new@example.com', name: 'New User' });
+
+      const result = await userService.createUser(
+        'tenant-abc',
+        { email: 'new@example.com', name: 'New User', pin: '1234', roleIds: ['role-id-1'] },
+        'admin-id',
+      );
+
+      expect(result).toBeDefined();
+      expect(result.hasPIN).toBe(true);
+      expect(result.email).toBe('new@example.com');
+    });
+
+    it('happy path: tạo user mới không có PIN', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.role.findMany.mockResolvedValueOnce([mockRole]);
+      mockPrisma.user.create.mockResolvedValueOnce({
+        id: 'user-id-123',
+        tenant_id: 'tenant-abc',
+        email: 'new@example.com',
+        name: 'New User',
+        is_active: true,
+      });
+      mockPrisma.userRole.createMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+      mockPrisma.user.findFirst.mockResolvedValueOnce({
+        ...mockUserRow,
+        email: 'new@example.com',
+        pin_hash: null,
+      });
+
+      const result = await userService.createUser(
+        'tenant-abc',
+        { email: 'new@example.com', name: 'New User', roleIds: ['role-id-1'] },
+        'admin-id',
+      );
+
+      expect(result.hasPIN).toBe(false);
+    });
+
+    it('duplicate email: ném ConflictException', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'existing-id' });
+
+      await expect(
+        userService.createUser(
+          'tenant-abc',
+          { email: 'existing@example.com', name: 'User', roleIds: ['role-id-1'] },
+          'admin-id',
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('invalid roles: ném BadRequestException', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.role.findMany.mockResolvedValueOnce([]); // roles không tồn tại
+
+      await expect(
+        userService.createUser(
+          'tenant-abc',
+          { email: 'new@example.com', name: 'User', roleIds: ['invalid-role-id'] },
+          'admin-id',
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('duplicate roleIds: deduplicate trước khi validate', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.role.findMany.mockResolvedValueOnce([mockRole]); // 1 unique role trả về
+      mockPrisma.user.create.mockResolvedValueOnce({
+        id: 'user-id-123',
+        tenant_id: 'tenant-abc',
+        email: 'new@example.com',
+        name: 'New User',
+        is_active: true,
+      });
+      mockPrisma.userRole.createMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+      mockPrisma.user.findFirst.mockResolvedValueOnce(mockUserRow);
+
+      // Không nên throw BadRequestException dù có duplicate roleIds
+      await expect(
+        userService.createUser(
+          'tenant-abc',
+          { email: 'new@example.com', name: 'New User', roleIds: ['role-id-1', 'role-id-1'] },
+          'admin-id',
+        ),
+      ).resolves.toBeDefined();
+    });
+
+    it('PIN hash được tạo đúng', async () => {
+      const { hashPin } = await import('@pos-sdd/shared');
+      const hash = await hashPin('1234');
+      expect(hash).toBe('hashed:1234');
+    });
+
+    it('audit log dùng adminUserId, không phải userId mới tạo', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.role.findMany.mockResolvedValueOnce([mockRole]);
+      mockPrisma.user.create.mockResolvedValueOnce({
+        id: 'user-id-123',
+        tenant_id: 'tenant-abc',
+        email: 'new@example.com',
+        name: 'New User',
+        is_active: true,
+      });
+      mockPrisma.userRole.createMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+      mockPrisma.user.findFirst.mockResolvedValueOnce(mockUserRow);
+
+      await userService.createUser(
+        'tenant-abc',
+        { email: 'new@example.com', name: 'New User', roleIds: ['role-id-1'] },
+        'admin-user-id',
+      );
+
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ user_id: 'admin-user-id' }),
+        }),
+      );
+    });
+
+    it('throw InternalServerErrorException nếu getUserById trả null sau create', async () => {
+      mockPrisma.user.findUnique.mockResolvedValueOnce(null);
+      mockPrisma.role.findMany.mockResolvedValueOnce([mockRole]);
+      mockPrisma.user.create.mockResolvedValueOnce({ id: 'user-id-123' });
+      mockPrisma.userRole.createMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null); // getUserById returns null
+
+      await expect(
+        userService.createUser(
+          'tenant-abc',
+          { email: 'new@example.com', name: 'New User', roleIds: ['role-id-1'] },
+          'admin-id',
+        ),
+      ).rejects.toBeInstanceOf(InternalServerErrorException);
+    });
+  });
+
+  // ──────────── updateUser ────────────
+  describe('updateUser', () => {
+    it('happy path: cập nhật tên', async () => {
+      mockPrisma.user.findFirst
+        .mockResolvedValueOnce({ id: 'user-id-123', name: 'Old Name', email: 'test@example.com', is_active: true })
+        .mockResolvedValueOnce(mockUserRow);
+      mockPrisma.user.update.mockResolvedValueOnce({});
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+
+      const result = await userService.updateUser('user-id-123', 'tenant-abc', { name: 'New Name' }, 'admin-id');
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-id-123', tenant_id: 'tenant-abc' },
+        data: { name: 'New Name' },
+      });
+      expect(result).toBeDefined();
+    });
+
+    it('email conflict: ném ConflictException', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({
+        id: 'user-id-123',
+        name: 'User',
+        email: 'old@example.com',
+        is_active: true,
+      });
+      mockPrisma.user.findUnique.mockResolvedValueOnce({ id: 'other-user' });
+
+      await expect(
+        userService.updateUser('user-id-123', 'tenant-abc', { email: 'taken@example.com' }, 'admin-id'),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it('user not found: ném NotFoundException', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        userService.updateUser('non-existent', 'tenant-abc', { name: 'Name' }, 'admin-id'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('cross-tenant blocked: ném NotFoundException', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null); // tenant_id mismatch → không tìm thấy
+
+      await expect(
+        userService.updateUser('user-id-123', 'other-tenant', { name: 'Name' }, 'admin-id'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('update WHERE clause bao gồm tenant_id', async () => {
+      mockPrisma.user.findFirst
+        .mockResolvedValueOnce({ id: 'user-id-123', name: 'Old', email: 'test@example.com', is_active: true })
+        .mockResolvedValueOnce(mockUserRow);
+      mockPrisma.user.update.mockResolvedValueOnce({});
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+
+      await userService.updateUser('user-id-123', 'tenant-abc', { name: 'New' }, 'admin-id');
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ tenant_id: 'tenant-abc' }),
+        }),
+      );
+    });
+  });
+
+  // ──────────── deactivateUser ────────────
+  describe('deactivateUser', () => {
+    it('happy path: vô hiệu hóa user', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123', is_active: true });
+      mockPrisma.user.update.mockResolvedValueOnce({});
+      mockPrisma.session.deleteMany.mockResolvedValueOnce({ count: 2 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+
+      const result = await userService.deactivateUser('user-id-123', 'tenant-abc', 'admin-id');
+
+      expect(result).toEqual({ success: true });
+      expect(mockPrisma.session.deleteMany).toHaveBeenCalledWith({ where: { user_id: 'user-id-123' } });
+    });
+
+    it('self-deactivation blocked: ném BadRequestException', async () => {
+      // Self-check trước DB — không cần mock findFirst
+      await expect(
+        userService.deactivateUser('admin-id', 'tenant-abc', 'admin-id'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      // findFirst KHÔNG được gọi vì check self trước
+      expect(mockPrisma.user.findFirst).not.toHaveBeenCalled();
+    });
+
+    it('sessions cleared: session.deleteMany được gọi', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123', is_active: true });
+      mockPrisma.user.update.mockResolvedValueOnce({});
+      mockPrisma.session.deleteMany.mockResolvedValueOnce({ count: 3 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+
+      await userService.deactivateUser('user-id-123', 'tenant-abc', 'admin-id');
+
+      expect(mockPrisma.session.deleteMany).toHaveBeenCalledWith({ where: { user_id: 'user-id-123' } });
+    });
+
+    it('user not found: ném NotFoundException', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        userService.deactivateUser('non-existent', 'tenant-abc', 'admin-id'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('audit log chứa old_data và new_data', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123', is_active: true });
+      mockPrisma.user.update.mockResolvedValueOnce({});
+      mockPrisma.session.deleteMany.mockResolvedValueOnce({ count: 0 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+
+      await userService.deactivateUser('user-id-123', 'tenant-abc', 'admin-id');
+
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            old_data: { is_active: true },
+            new_data: { is_active: false },
+          }),
+        }),
+      );
+    });
+
+    it('update WHERE clause bao gồm tenant_id', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123', is_active: true });
+      mockPrisma.user.update.mockResolvedValueOnce({});
+      mockPrisma.session.deleteMany.mockResolvedValueOnce({ count: 0 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+
+      await userService.deactivateUser('user-id-123', 'tenant-abc', 'admin-id');
+
+      expect(mockPrisma.user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ tenant_id: 'tenant-abc' }),
+        }),
+      );
+    });
+  });
+
+  // ──────────── activateUser ────────────
+  describe('activateUser', () => {
+    it('happy path: kích hoạt user', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123', is_active: false });
+      mockPrisma.user.update.mockResolvedValueOnce({});
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+
+      const result = await userService.activateUser('user-id-123', 'tenant-abc', 'admin-id');
+
+      expect(result).toEqual({ success: true });
+      expect(mockPrisma.user.update).toHaveBeenCalledWith({
+        where: { id: 'user-id-123', tenant_id: 'tenant-abc' },
+        data: { is_active: true },
+      });
+    });
+
+    it('user not found: ném NotFoundException', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        userService.activateUser('non-existent', 'tenant-abc', 'admin-id'),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('audit log chứa old_data và new_data', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123', is_active: false });
+      mockPrisma.user.update.mockResolvedValueOnce({});
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+
+      await userService.activateUser('user-id-123', 'tenant-abc', 'admin-id');
+
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            old_data: { is_active: false },
+            new_data: { is_active: true },
+          }),
+        }),
+      );
+    });
+  });
+
+  // ──────────── getUserById ────────────
+  describe('getUserById', () => {
+    it('happy path: trả về user với roles và store_assignments', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(mockUserRow);
+
+      const result = await userService.getUserById('user-id-123', 'tenant-abc');
+
+      expect(result).toBeDefined();
+      expect(result!.id).toBe('user-id-123');
+      expect(result!.roles).toHaveLength(1);
+      expect(result!.storeAssignments).toHaveLength(1);
+      expect('pin_hash' in result!).toBe(false);
+      expect('password_hash' in result!).toBe(false);
+      expect(result!.hasPIN).toBe(true);
+    });
+
+    it('user không có PIN: hasPIN = false', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ ...mockUserRow, pin_hash: null });
+
+      const result = await userService.getUserById('user-id-123', 'tenant-abc');
+      expect(result!.hasPIN).toBe(false);
+    });
+
+    it('cross-tenant returns null', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null);
+
+      const result = await userService.getUserById('user-id-123', 'other-tenant');
+      expect(result).toBeNull();
+    });
+  });
+
+  // ──────────── listUsers ────────────
+  describe('listUsers', () => {
+    it('happy path: trả về danh sách với pagination', async () => {
+      mockPrisma.user.findMany.mockResolvedValueOnce([mockUserRow]);
+      mockPrisma.user.count.mockResolvedValueOnce(1);
+
+      const result = await userService.listUsers('tenant-abc', { page: 1, limit: 20 });
+
+      expect(result.data).toHaveLength(1);
+      expect(result.meta).toEqual({ page: 1, limit: 20, total: 1 });
+    });
+
+    it('pagination: đúng skip và take', async () => {
+      mockPrisma.user.findMany.mockResolvedValueOnce([]);
+      mockPrisma.user.count.mockResolvedValueOnce(50);
+
+      await userService.listUsers('tenant-abc', { page: 3, limit: 10 });
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skip: 20, take: 10 }),
+      );
+    });
+
+    it('search filter: tìm theo name hoặc email', async () => {
+      mockPrisma.user.findMany.mockResolvedValueOnce([]);
+      mockPrisma.user.count.mockResolvedValueOnce(0);
+
+      await userService.listUsers('tenant-abc', { search: 'john' });
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              expect.objectContaining({
+                OR: expect.arrayContaining([
+                  { name: { contains: 'john', mode: 'insensitive' } },
+                  { email: { contains: 'john', mode: 'insensitive' } },
+                ]),
+              }),
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('role filter: lọc theo roleId', async () => {
+      mockPrisma.user.findMany.mockResolvedValueOnce([]);
+      mockPrisma.user.count.mockResolvedValueOnce(0);
+
+      await userService.listUsers('tenant-abc', { roleId: 'role-id-1' });
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              { user_roles: { some: { role_id: 'role-id-1' } } },
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('isActive filter: lọc theo trạng thái', async () => {
+      mockPrisma.user.findMany.mockResolvedValueOnce([]);
+      mockPrisma.user.count.mockResolvedValueOnce(0);
+
+      await userService.listUsers('tenant-abc', { isActive: false });
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            AND: expect.arrayContaining([
+              { is_active: false },
+            ]),
+          }),
+        }),
+      );
+    });
+
+    it('empty results: trả về mảng rỗng', async () => {
+      mockPrisma.user.findMany.mockResolvedValueOnce([]);
+      mockPrisma.user.count.mockResolvedValueOnce(0);
+
+      const result = await userService.listUsers('tenant-abc', {});
+
+      expect(result.data).toHaveLength(0);
+      expect(result.meta.total).toBe(0);
+    });
+
+    it('tenant isolation: chỉ lấy users của tenant hiện tại', async () => {
+      mockPrisma.user.findMany.mockResolvedValueOnce([]);
+      mockPrisma.user.count.mockResolvedValueOnce(0);
+
+      await userService.listUsers('tenant-abc', {});
+
+      expect(mockPrisma.user.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ tenant_id: 'tenant-abc' }),
+        }),
+      );
+    });
+  });
+});
