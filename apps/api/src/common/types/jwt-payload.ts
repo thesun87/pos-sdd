@@ -3,7 +3,7 @@ export interface JwtPayload {
   tenantId: string;
   roles: string[];
   storeAssignments: {
-    storeId: string;
+    storeId: string | null;
     scopeType: 'SINGLE_STORE' | 'STORE_GROUP' | 'ALL_STORES';
   }[];
   iat?: number;

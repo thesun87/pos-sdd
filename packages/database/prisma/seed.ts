@@ -230,20 +230,106 @@ async function main() {
   });
   console.log(`✅ Admin user assigned system_admin role`);
 
-  // === CUSTOM AUTH ACCOUNT RECORD ===
-  // Tạo Account record cho admin user (credential provider)
-  // Custom AuthService lưu password hash trong Account.password
-  await prisma.account.upsert({
-    where: {
-      id: '01900000-0000-7000-8000-000000000401',
+  // === STORE ASSIGNMENT: Admin → ALL_STORES (no storeId required) ===
+  const adminAllStoresId = '01900000-0000-7000-8000-000000000400';
+  await prisma.userStoreAssignment.upsert({
+    where: { id: adminAllStoresId },
+    update: {},
+    create: {
+      id: adminAllStoresId,
+      user_id: adminUser.id,
+      store_id: null as unknown as string,
+      scope_type: 'ALL_STORES',
     },
+  });
+  console.log(`✅ Admin user assigned ALL_STORES scope`);
+
+  // === DEMO CASHIER USER (SINGLE_STORE for Store 1) ===
+  const cashierRole = rolesData.find((r) => r.name === 'cashier')!;
+  const cashierUser = await prisma.user.upsert({
+    where: { id: '01900000-0000-7000-8000-000000000302' },
+    update: {},
+    create: {
+      id: '01900000-0000-7000-8000-000000000302',
+      tenant_id: tenant.id,
+      email: 'cashier@pos-sdd.local',
+      name: 'Demo Cashier',
+      pin_hash: hashSync('111111', 10),
+      is_active: true,
+    },
+  });
+  await prisma.userRole.upsert({
+    where: { user_id_role_id: { user_id: cashierUser.id, role_id: cashierRole.id } },
+    update: {},
+    create: { id: uuidv7(), user_id: cashierUser.id, role_id: cashierRole.id },
+  });
+  await prisma.userStoreAssignment.upsert({
+    where: { id: '01900000-0000-7000-8000-000000000401' },
     update: {},
     create: {
       id: '01900000-0000-7000-8000-000000000401',
-      user_id: adminUser.id,
-      account_id: adminUser.email,       // Provider's user ID = email
-      provider_id: 'credential',          // Email/password provider
-      password: passwordHash,            // Custom Auth lưu password hash trong Account.password
+      user_id: cashierUser.id,
+      store_id: store1.id,
+      scope_type: 'SINGLE_STORE',
+    },
+  });
+  console.log(`✅ Demo cashier: ${cashierUser.email} (SINGLE_STORE - Chi nhánh Quận 1)`);
+
+  // === DEMO STORE MANAGER USER (STORE_GROUP for Store 1 + Store 2) ===
+  const storeManagerRole = rolesData.find((r) => r.name === 'store_manager')!;
+  const managerUser = await prisma.user.upsert({
+    where: { id: '01900000-0000-7000-8000-000000000303' },
+    update: {},
+    create: {
+      id: '01900000-0000-7000-8000-000000000303',
+      tenant_id: tenant.id,
+      email: 'manager@pos-sdd.local',
+      name: 'Demo Store Manager',
+      pin_hash: hashSync('222222', 10),
+      is_active: true,
+    },
+  });
+  await prisma.userRole.upsert({
+    where: { user_id_role_id: { user_id: managerUser.id, role_id: storeManagerRole.id } },
+    update: {},
+    create: { id: uuidv7(), user_id: managerUser.id, role_id: storeManagerRole.id },
+  });
+  await prisma.userStoreAssignment.upsert({
+    where: { id: '01900000-0000-7000-8000-000000000402' },
+    update: {},
+    create: {
+      id: '01900000-0000-7000-8000-000000000402',
+      user_id: managerUser.id,
+      store_id: store1.id,
+      scope_type: 'STORE_GROUP',
+    },
+  });
+  await prisma.userStoreAssignment.upsert({
+    where: { id: '01900000-0000-7000-8000-000000000403' },
+    update: {},
+    create: {
+      id: '01900000-0000-7000-8000-000000000403',
+      user_id: managerUser.id,
+      store_id: store2.id,
+      scope_type: 'STORE_GROUP',
+    },
+  });
+  console.log(`✅ Demo store manager: ${managerUser.email} (STORE_GROUP - 2 stores)`);
+
+  // === CUSTOM AUTH ACCOUNT RECORD ===
+  // Tạo Account record cho admin user (credential provider)
+  // Custom AuthService lưu password hash trong Account.password
+  await (prisma.account.upsert as (args: unknown) => Promise<unknown>)({
+    where: {
+      id: '01900000-0000-7000-8000-000000000500',
+    },
+    update: {},
+    create: {
+      id: '01900000-0000-7000-8000-000000000500',
+      userId: adminUser.id,
+      accountId: adminUser.email,
+      providerId: 'credential',
+      password: passwordHash,
     },
   });
   console.log(`✅ Custom Auth Account record created for admin user`);

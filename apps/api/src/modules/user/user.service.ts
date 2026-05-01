@@ -12,6 +12,7 @@ import type { CreateUserDto } from './dto/create-user.dto.js';
 import type { UpdateUserDto } from './dto/update-user.dto.js';
 import type { ListUsersQueryDto } from './dto/list-users-query.dto.js';
 import type { AssignRolesDto } from './dto/assign-roles.dto.js';
+import type { AssignStoreDto } from './dto/assign-store.dto.js';
 
 export interface UserResponse {
   id: string;
@@ -23,9 +24,9 @@ export interface UserResponse {
   roles: Array<{ id: string; name: string }>;
   storeAssignments: Array<{
     id: string;
-    storeId: string;
+    storeId: string | null;
     scopeType: string;
-    store: { id: string; name: string };
+    store: { id: string; name: string } | null;
   }>;
   createdAt: Date;
   updatedAt: Date;
@@ -206,7 +207,7 @@ export class UserService {
       });
 
       // 3. Xóa tất cả sessions của user
-      await tx.session.deleteMany({ where: { user_id: userId } });
+      await tx.session.deleteMany({ where: { userId } });
 
       // 4. Ghi audit log trong cùng transaction — P-6: thêm old_data/new_data
       await tx.auditLog.create({
@@ -324,7 +325,7 @@ export class UserService {
         },
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { created_at: 'asc' },
+        orderBy: { createdAt: 'asc' },
       }),
       this.db.user.count({ where }),
     ]);
@@ -405,6 +406,140 @@ export class UserService {
     };
   }
 
+  async assignStoreScopes(
+    userId: string,
+    tenantId: string,
+    adminUserId: string,
+    dto: AssignStoreDto,
+  ): Promise<{ userId: string; assignments: Array<{ storeId: string | null; scopeType: string }> }> {
+    await this.db.$transaction(async (tx) => {
+      // 1. Validate user tồn tại và cùng tenant
+      const user = await tx.user.findFirst({
+        where: { id: userId, tenant_id: tenantId },
+        select: { id: true },
+      });
+      if (!user) throw new NotFoundException('Không tìm thấy người dùng');
+
+      // 2. Validate ALL_STORES: chỉ cho phép 1 và phải exclusive
+      const allStoresAssignments = dto.assignments.filter((a) => a.scopeType === 'ALL_STORES');
+      if (allStoresAssignments.length > 1) {
+        throw new BadRequestException('Chỉ được phép 1 assignment với scopeType ALL_STORES');
+      }
+      if (allStoresAssignments.length === 1 && dto.assignments.length > 1) {
+        throw new BadRequestException('ALL_STORES phải là assignment duy nhất, không được kết hợp với SINGLE_STORE hoặc STORE_GROUP');
+      }
+
+      // 3. Validate SINGLE_STORE/STORE_GROUP phải có storeId và tồn tại trong tenant
+      const nonAllStoresAssignments = dto.assignments.filter((a) => a.scopeType !== 'ALL_STORES');
+      for (const a of nonAllStoresAssignments) {
+        if (!a.storeId) {
+          throw new BadRequestException(`scopeType ${a.scopeType} yêu cầu storeId`);
+        }
+      }
+
+      const nonAllStoresIds = nonAllStoresAssignments.map((a) => a.storeId as string);
+
+      // 4. Deduplicate storeId trong SINGLE_STORE/STORE_GROUP
+      const seen = new Set<string>();
+      for (const id of nonAllStoresIds) {
+        if (seen.has(id)) {
+          throw new BadRequestException(`Trùng lặp storeId: ${id}`);
+        }
+        seen.add(id);
+      }
+
+      if (nonAllStoresIds.length > 0) {
+        const stores = await tx.store.findMany({
+          where: { id: { in: nonAllStoresIds }, tenant_id: tenantId },
+          select: { id: true },
+        });
+        if (stores.length !== nonAllStoresIds.length) {
+          throw new BadRequestException('Một hoặc nhiều storeId không hợp lệ hoặc không thuộc tenant này');
+        }
+      }
+
+      // 6. Lấy old assignments để audit log
+      const oldAssignments = await tx.userStoreAssignment.findMany({
+        where: { user_id: userId },
+        select: { store_id: true, scope_type: true },
+      });
+
+      // 7. Delete tất cả assignments cũ → createMany mới
+      await tx.userStoreAssignment.deleteMany({ where: { user_id: userId } });
+
+      if (dto.assignments.length > 0) {
+        await tx.userStoreAssignment.createMany({
+          data: dto.assignments.map((a) => ({
+            id: generateId(),
+            user_id: userId,
+            store_id: a.storeId ?? null,
+            scope_type: a.scopeType,
+          })),
+        });
+      }
+
+      // 8. Ghi audit log
+      await tx.auditLog.create({
+        data: {
+          id: generateId(),
+          tenant_id: tenantId,
+          user_id: adminUserId,
+          action: 'UPDATE',
+          resource: 'user_store_assignment',
+          resource_id: userId,
+          old_data: { assignments: oldAssignments.map((a: { store_id: string | null; scope_type: string }) => ({ storeId: a.store_id, scopeType: a.scope_type })) },
+          new_data: { assignments: dto.assignments.map((a) => ({ storeId: a.storeId, scopeType: a.scopeType })) },
+          metadata: {
+            old_assignments: oldAssignments.map((a: { store_id: string | null; scope_type: string }) => ({ storeId: a.store_id, scopeType: a.scope_type })),
+            new_assignments: dto.assignments.map((a) => ({ storeId: a.storeId, scopeType: a.scopeType })),
+          },
+        },
+      });
+    });
+
+    // Lấy assignments mới để trả về
+    const updatedAssignments = await this.db.userStoreAssignment.findMany({
+      where: { user_id: userId },
+      select: { store_id: true, scope_type: true },
+    });
+
+    return {
+      userId,
+      assignments: updatedAssignments.map((a: { store_id: string | null; scope_type: string }) => ({
+        storeId: a.store_id,
+        scopeType: a.scope_type,
+      })),
+    };
+  }
+
+  async getStoreAssignments(
+    userId: string,
+    tenantId: string,
+  ): Promise<{ data: Array<{ id: string; storeId: string | null; scopeType: string; store: { name: string; address: string | null; isActive: boolean } | null }> }> {
+    // Validate user tồn tại và cùng tenant để đảm bảo tenant isolation
+    const user = await this.db.user.findFirst({
+      where: { id: userId, tenant_id: tenantId },
+      select: { id: true },
+    });
+    if (!user) throw new NotFoundException('Không tìm thấy người dùng');
+
+    const assignments = await this.db.userStoreAssignment.findMany({
+      where: { user_id: userId },
+      include: { store: { select: { id: true, name: true, address: true, is_active: true } } },
+    });
+
+    return {
+      data: assignments.map((a: { id: string; store_id: string | null; scope_type: string; store: { id: string; name: string; address: string | null; is_active: boolean } | null }) => ({
+        id: a.id,
+        storeId: a.store_id,
+        scopeType: a.scope_type,
+        store: a.store
+          ? { name: a.store.name, address: a.store.address, isActive: a.store.is_active }
+          : null,
+      })),
+    };
+  }
+
   private _mapUserResponse(user: {
     id: string;
     email: string;
@@ -412,14 +547,14 @@ export class UserService {
     is_active: boolean;
     pin_hash: string | null;
     tenant_id: string;
-    created_at: Date;
-    updated_at: Date;
+    createdAt: Date;
+    updatedAt: Date;
     user_roles: Array<{ role: { id: string; name: string } }>;
     store_assignments: Array<{
       id: string;
-      store_id: string;
+      store_id: string | null;
       scope_type: string;
-      store: { id: string; name: string };
+      store: { id: string; name: string } | null;
     }>;
   }): UserResponse {
     return {
@@ -434,10 +569,10 @@ export class UserService {
         id: sa.id,
         storeId: sa.store_id,
         scopeType: sa.scope_type,
-        store: { id: sa.store.id, name: sa.store.name },
+        store: sa.store ? { id: sa.store.id, name: sa.store.name } : null,
       })),
-      createdAt: user.created_at,
-      updatedAt: user.updated_at,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt,
     };
   }
 }

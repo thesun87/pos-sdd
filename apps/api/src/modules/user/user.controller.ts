@@ -21,6 +21,7 @@ import { CreateUserDto } from './dto/create-user.dto.js';
 import { UpdateUserDto } from './dto/update-user.dto.js';
 import { ListUsersQueryDto } from './dto/list-users-query.dto.js';
 import { AssignRolesDto } from './dto/assign-roles.dto.js';
+import { AssignStoreDto } from './dto/assign-store.dto.js';
 
 @Controller('users')
 export class UserController {
@@ -103,5 +104,27 @@ export class UserController {
   ) {
     const result = await this.userService.assignRoles(id, user.tenantId, user.userId, dto);
     return { data: result };
+  }
+
+  @Post(':id/store-assignments')
+  @UseGuards(AuthModeGuard, RoleGuard)
+  @Roles('chain_owner', 'system_admin')
+  @HttpCode(HttpStatus.OK)
+  async assignStoreScopes(
+    @Param('id') id: string,
+    @Body() dto: AssignStoreDto,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const result = await this.userService.assignStoreScopes(id, user.tenantId, user.userId, dto);
+    return { data: result };
+  }
+
+  @Get(':id/store-assignments')
+  @UseGuards(AuthModeGuard)
+  async getStoreAssignments(
+    @Param('id') id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.userService.getStoreAssignments(id, user.tenantId);
   }
 }

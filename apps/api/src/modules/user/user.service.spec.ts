@@ -47,8 +47,10 @@ const mockPrisma = {
     findMany: vi.fn(),
   },
   userRole: { createMany: vi.fn(), deleteMany: vi.fn(), findMany: vi.fn() },
+  userStoreAssignment: { findMany: vi.fn(), createMany: vi.fn(), deleteMany: vi.fn() },
   session: { deleteMany: vi.fn() },
   role: { findMany: vi.fn() },
+  store: { findMany: vi.fn(), findFirst: vi.fn() },
   auditLog: { create: vi.fn() },
   $transaction: vi.fn((fn: (tx: typeof mockPrisma) => Promise<unknown>) => fn(mockPrisma)),
 };
@@ -496,6 +498,213 @@ describe('UserService', () => {
           }),
         }),
       );
+    });
+  });
+
+  // ──────────── assignStoreScopes ────────────
+  describe('assignStoreScopes', () => {
+    it('happy path: gán store assignments thành công', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+      mockPrisma.store.findMany.mockResolvedValueOnce([{ id: 'store-id-1' }]);
+      mockPrisma.userStoreAssignment.findMany.mockResolvedValueOnce([]);
+      mockPrisma.userStoreAssignment.deleteMany.mockResolvedValueOnce({ count: 0 });
+      mockPrisma.userStoreAssignment.createMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+      // sau transaction, lấy assignments mới
+      mockPrisma.userStoreAssignment.findMany.mockResolvedValueOnce([
+        { store_id: 'store-id-1', scope_type: 'SINGLE_STORE' },
+      ]);
+
+      const result = await userService.assignStoreScopes(
+        'user-id-123', 'tenant-abc', 'admin-id',
+        { assignments: [{ storeId: 'store-id-1', scopeType: 'SINGLE_STORE' }] },
+      );
+
+      expect(result.userId).toBe('user-id-123');
+      expect(result.assignments).toHaveLength(1);
+      expect(result.assignments[0]!.storeId).toBe('store-id-1');
+      expect(mockPrisma.userStoreAssignment.deleteMany).toHaveBeenCalledWith({ where: { user_id: 'user-id-123' } });
+    });
+
+    it('happy path: gán ALL_STORES scope không cần storeId', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+      mockPrisma.userStoreAssignment.findMany.mockResolvedValueOnce([]);
+      mockPrisma.userStoreAssignment.deleteMany.mockResolvedValueOnce({ count: 0 });
+      mockPrisma.userStoreAssignment.createMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+      mockPrisma.userStoreAssignment.findMany.mockResolvedValueOnce([
+        { store_id: null, scope_type: 'ALL_STORES' },
+      ]);
+
+      const result = await userService.assignStoreScopes(
+        'user-id-123', 'tenant-abc', 'admin-id',
+        { assignments: [{ scopeType: 'ALL_STORES' }] },
+      );
+
+      expect(result.assignments[0]!.scopeType).toBe('ALL_STORES');
+      expect(result.assignments[0]!.storeId).toBeNull();
+    });
+
+    it('throw NotFoundException nếu user không tồn tại', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        userService.assignStoreScopes('non-existent', 'tenant-abc', 'admin-id', {
+          assignments: [{ storeId: 'store-id-1', scopeType: 'SINGLE_STORE' }],
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
+    it('throw BadRequestException nếu storeId không thuộc tenant', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+      mockPrisma.store.findMany.mockResolvedValueOnce([]); // 0 stores found
+
+      await expect(
+        userService.assignStoreScopes('user-id-123', 'tenant-abc', 'admin-id', {
+          assignments: [{ storeId: 'invalid-store-id', scopeType: 'SINGLE_STORE' }],
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('throw BadRequestException nếu có 2 ALL_STORES assignments', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+
+      await expect(
+        userService.assignStoreScopes('user-id-123', 'tenant-abc', 'admin-id', {
+          assignments: [
+            { storeId: 'store-id-1', scopeType: 'ALL_STORES' },
+            { storeId: 'store-id-2', scopeType: 'ALL_STORES' },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('throw BadRequestException nếu ALL_STORES kết hợp với SINGLE_STORE', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+
+      await expect(
+        userService.assignStoreScopes('user-id-123', 'tenant-abc', 'admin-id', {
+          assignments: [
+            { storeId: 'store-id-1', scopeType: 'ALL_STORES' },
+            { storeId: 'store-id-2', scopeType: 'SINGLE_STORE' },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('throw BadRequestException nếu có duplicate storeId+scopeType', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+
+      await expect(
+        userService.assignStoreScopes('user-id-123', 'tenant-abc', 'admin-id', {
+          assignments: [
+            { storeId: 'store-id-1', scopeType: 'SINGLE_STORE' },
+            { storeId: 'store-id-1', scopeType: 'SINGLE_STORE' },
+          ],
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('happy path: assignments rỗng xóa toàn bộ store assignments', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+      mockPrisma.userStoreAssignment.findMany.mockResolvedValueOnce([
+        { store_id: 'store-id-old', scope_type: 'SINGLE_STORE' },
+      ]);
+      mockPrisma.userStoreAssignment.deleteMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+      mockPrisma.userStoreAssignment.findMany.mockResolvedValueOnce([]);
+
+      const result = await userService.assignStoreScopes(
+        'user-id-123', 'tenant-abc', 'admin-id',
+        { assignments: [] },
+      );
+
+      expect(result.assignments).toHaveLength(0);
+      expect(mockPrisma.userStoreAssignment.deleteMany).toHaveBeenCalledWith({ where: { user_id: 'user-id-123' } });
+      expect(mockPrisma.userStoreAssignment.createMany).not.toHaveBeenCalled();
+    });
+
+    it('audit log ghi nhận old_assignments và new_assignments', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+      mockPrisma.store.findMany.mockResolvedValueOnce([{ id: 'store-id-1' }]);
+      mockPrisma.userStoreAssignment.findMany.mockResolvedValueOnce([
+        { store_id: 'store-id-old', scope_type: 'SINGLE_STORE' },
+      ]);
+      mockPrisma.userStoreAssignment.deleteMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.userStoreAssignment.createMany.mockResolvedValueOnce({ count: 1 });
+      mockPrisma.auditLog.create.mockResolvedValueOnce({});
+      mockPrisma.userStoreAssignment.findMany.mockResolvedValueOnce([
+        { store_id: 'store-id-1', scope_type: 'SINGLE_STORE' },
+      ]);
+
+      await userService.assignStoreScopes('user-id-123', 'tenant-abc', 'admin-id', {
+        assignments: [{ storeId: 'store-id-1', scopeType: 'SINGLE_STORE' }],
+      });
+
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            resource: 'user_store_assignment',
+            metadata: expect.objectContaining({
+              old_assignments: expect.arrayContaining([
+                { storeId: 'store-id-old', scopeType: 'SINGLE_STORE' },
+              ]),
+            }),
+          }),
+        }),
+      );
+    });
+  });
+
+  // ──────────── getStoreAssignments ────────────
+  describe('getStoreAssignments', () => {
+    it('happy path: trả về danh sách assignments với store details', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+      mockPrisma.userStoreAssignment.findMany.mockResolvedValueOnce([
+        {
+          id: 'assign-id-1',
+          store_id: 'store-id-1',
+          scope_type: 'SINGLE_STORE',
+          store: { id: 'store-id-1', name: 'Chi nhánh Quận 1', address: '123 Nguyễn Huệ', is_active: true },
+        },
+      ]);
+
+      const result = await userService.getStoreAssignments('user-id-123', 'tenant-abc');
+
+      expect(result.data).toHaveLength(1);
+      expect(result.data[0]!.storeId).toBe('store-id-1');
+      expect(result.data[0]!.scopeType).toBe('SINGLE_STORE');
+      expect(result.data[0]!.store?.name).toBe('Chi nhánh Quận 1');
+    });
+
+    it('ALL_STORES assignment trả về store = null', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+      mockPrisma.userStoreAssignment.findMany.mockResolvedValueOnce([
+        { id: 'assign-id-2', store_id: null, scope_type: 'ALL_STORES', store: null },
+      ]);
+
+      const result = await userService.getStoreAssignments('user-id-123', 'tenant-abc');
+
+      expect(result.data[0]!.storeId).toBeNull();
+      expect(result.data[0]!.scopeType).toBe('ALL_STORES');
+      expect(result.data[0]!.store).toBeNull();
+    });
+
+    it('trả về mảng rỗng nếu chưa có assignments', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce({ id: 'user-id-123' });
+      mockPrisma.userStoreAssignment.findMany.mockResolvedValueOnce([]);
+
+      const result = await userService.getStoreAssignments('user-id-123', 'tenant-abc');
+
+      expect(result.data).toHaveLength(0);
+    });
+
+    it('throw NotFoundException nếu user không tồn tại hoặc cross-tenant', async () => {
+      mockPrisma.user.findFirst.mockResolvedValueOnce(null);
+
+      await expect(
+        userService.getStoreAssignments('user-id-123', 'tenant-other'),
+      ).rejects.toBeInstanceOf(NotFoundException);
     });
   });
 

@@ -172,13 +172,12 @@ model UserRole {
 model UserStoreAssignment {
   id         String         @id @db.Uuid
   user_id    String
-  store_id   String         @db.Uuid
+  store_id   String?        @db.Uuid
   scope_type StoreScopeType @default(SINGLE_STORE)
 
-  user  User  @relation(fields: [user_id], references: [id])
-  store Store @relation(fields: [store_id], references: [id])
+  user  User   @relation(fields: [user_id], references: [id])
+  store Store? @relation(fields: [store_id], references: [id])
 
-  @@unique([user_id, store_id])
   @@map("user_store_assignments")
 }
 

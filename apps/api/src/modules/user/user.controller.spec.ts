@@ -29,6 +29,9 @@ const mockUserService = {
   updateUser: vi.fn(),
   deactivateUser: vi.fn(),
   activateUser: vi.fn(),
+  assignRoles: vi.fn(),
+  assignStoreScopes: vi.fn(),
+  getStoreAssignments: vi.fn(),
 };
 
 describe('UserController', () => {
@@ -124,6 +127,46 @@ describe('UserController', () => {
       const result = await controller.activateUser('user-id-123', mockJwtPayload);
 
       expect(result).toEqual({ data: { success: true } });
+    });
+  });
+
+  describe('assignStoreScopes', () => {
+    it('trả về { data: result }', async () => {
+      const assignResult = { userId: 'user-id-123', assignments: [{ storeId: 'store-id-1', scopeType: 'SINGLE_STORE' }] };
+      mockUserService.assignStoreScopes.mockResolvedValueOnce(assignResult);
+
+      const result = await controller.assignStoreScopes(
+        'user-id-123',
+        { assignments: [{ storeId: 'store-id-1', scopeType: 'SINGLE_STORE' }] },
+        mockJwtPayload,
+      );
+
+      expect(result).toEqual({ data: assignResult });
+      expect(mockUserService.assignStoreScopes).toHaveBeenCalledWith(
+        'user-id-123', 'tenant-abc', 'admin-id',
+        { assignments: [{ storeId: 'store-id-1', scopeType: 'SINGLE_STORE' }] },
+      );
+    });
+  });
+
+  describe('getStoreAssignments', () => {
+    it('trả về danh sách assignments', async () => {
+      const assignmentsResult = {
+        data: [
+          {
+            id: 'assign-id-1',
+            storeId: 'store-id-1',
+            scopeType: 'SINGLE_STORE',
+            store: { name: 'Chi nhánh Quận 1', address: '123 Nguyễn Huệ', isActive: true },
+          },
+        ],
+      };
+      mockUserService.getStoreAssignments.mockResolvedValueOnce(assignmentsResult);
+
+      const result = await controller.getStoreAssignments('user-id-123', mockJwtPayload);
+
+      expect(result).toEqual(assignmentsResult);
+      expect(mockUserService.getStoreAssignments).toHaveBeenCalledWith('user-id-123', 'tenant-abc');
     });
   });
 

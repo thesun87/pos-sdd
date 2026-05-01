@@ -5,6 +5,7 @@ import { AuthNestModule } from './modules/auth/auth.module.js';
 import { UserModule } from './modules/user/user.module.js';
 import { RoleModule } from './modules/role/role.module.js';
 import { PolicyModule } from './modules/policy/policy.module.js';
+import { StoreModule } from './modules/store/store.module.js';
 import { resolve } from 'path';
 
 // Resolve .env from monorepo root (2 levels up from apps/api/)
@@ -26,6 +27,7 @@ const rootDir = resolve(__dirname, '../../..');
     UserModule,
     RoleModule,
     PolicyModule,
+    StoreModule,
   ],
   controllers: [],
   providers: [],

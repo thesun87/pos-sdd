@@ -92,9 +92,9 @@ export class AuthService {
       await tx.account.create({
         data: {
           id: generateId(),
-          user_id: newUser.id,
-          account_id: email,
-          provider_id: 'credential',
+          userId: newUser.id,
+          accountId: email,
+          providerId: 'credential',
           password: passwordHash,
         },
       });
@@ -134,7 +134,7 @@ export class AuthService {
     const account = await this.db.account.findFirst({
       where: {
         user: { email, tenant_id: tenantId },
-        provider_id: 'credential',
+        providerId: 'credential',
       },
       include: {
         user: true,
@@ -158,10 +158,10 @@ export class AuthService {
       data: {
         id: generateId(),
         token,
-        user_id: account.user_id,
-        expires_at: addDays(new Date(), expiryDays),
-        ip_address: ipAddress ?? null,
-        user_agent: userAgent ?? null,
+        userId: account.userId,
+        expiresAt: addDays(new Date(), expiryDays),
+        ipAddress: ipAddress ?? null,
+        userAgent: userAgent ?? null,
       },
     });
 
@@ -169,7 +169,7 @@ export class AuthService {
       data: {
         id: generateId(),
         tenant_id: tenantId,
-        user_id: account.user_id,
+        user_id: account.userId,
         action: 'LOGIN',
         resource: 'session',
         metadata: { method: 'email_password' },
@@ -200,7 +200,7 @@ export class AuthService {
     if (!session) return null;
 
     // Kiểm tra session còn hạn không
-    if (session.expires_at < new Date()) {
+    if (session.expiresAt < new Date()) {
       // Xóa session hết hạn
       await this.db.session.delete({ where: { token } }).catch(() => null);
       return null;
@@ -217,7 +217,7 @@ export class AuthService {
   async signOut(token: string): Promise<void> {
     const session = await this.db.session.findUnique({
       where: { token },
-      select: { user_id: true, user: { select: { tenant_id: true } } },
+      select: { userId: true, user: { select: { tenant_id: true } } },
     });
 
     if (!session) return; // Idempotent — không throw lỗi
@@ -230,7 +230,7 @@ export class AuthService {
         data: {
           id: generateId(),
           tenant_id: session.user.tenant_id,
-          user_id: session.user_id,
+          user_id: session.userId,
           action: 'LOGOUT',
           resource: 'session',
         },

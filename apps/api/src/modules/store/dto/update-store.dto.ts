@@ -1,0 +1,16 @@
+import { IsString, IsOptional, MinLength } from 'class-validator';
+
+export class UpdateStoreDto {
+  @IsOptional()
+  @IsString()
+  @MinLength(2)
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  address?: string;
+
+  @IsOptional()
+  @IsString()
+  phone?: string;
+}

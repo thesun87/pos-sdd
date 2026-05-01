@@ -6,6 +6,15 @@
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
   "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      ".": ["./dist/index.d.ts"],
+      "types": ["./dist/types/index.d.ts"],
+      "constants": ["./dist/constants/index.d.ts"],
+      "validators": ["./dist/validators/index.d.ts"],
+      "utils": ["./dist/utils/index.d.ts"]
+    }
+  },
   "exports": {
     ".": {
       "import": "./dist/index.mjs",

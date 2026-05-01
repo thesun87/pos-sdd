@@ -2,7 +2,7 @@
   "info": {
     "_postman_id": "pos-sdd-auth-collection",
     "name": "POS-SDD Authentication & RBAC API",
-    "description": "Postman collection cho Story 1.3–1.5 — Custom Auth, User Management & Role/Policy RBAC\n\n**Base URL:** `http://localhost:3001/api/v1`\n\n**Seed data mặc định:**\n- Email: `admin@pos-sdd.local`\n- Password: `Admin@123456`\n- PIN: `123456`\n- Tenant slug: `pos-sdd-demo`\n- Tenant ID: (lấy từ GET /auth/session sau khi sign-in)\n\n**Auth modes:**\n1. Session (HttpOnly cookie `session_token`) — email/password login\n2. JWT Bearer — PIN login cho POS/KDS\n\n**Code Review Fixes (Story 1.5 Patch):**\n- POST /users/:id/roles gio yeu cau role chain_owner hoac system_admin\n- Policy CRUD duoc wrap trong DB transaction (audit log atomic)\n- Policy cache invalidate ngay sau moi thay doi (khong phai sau 5 phut)\n- overrideRole duoc validate ton tai trong tenant khi tao policy\n- GET /roles/:id tra ve tat ca policies (bao gom inactive)\n- APPROVAL_JWT_SECRET rieng biet cho approval tokens\n\n**User Management (Story 1.4):**\n- `POST /api/v1/users` — tạo user mới\n- `GET /api/v1/users` — danh sách users (có pagination + filter)\n- `GET /api/v1/users/:id` — chi tiết user\n- `PATCH /api/v1/users/:id` — cập nhật user\n- `POST /api/v1/users/:id/deactivate` — vô hiệu hóa user\n- `POST /api/v1/users/:id/activate` — kích hoạt user\n- `POST /api/v1/users/:id/roles` — gán roles cho user\n\n**Role Management (Story 1.5):**\n- `GET /api/v1/roles` — danh sách roles (có pagination + filter)\n- `GET /api/v1/roles/:id` — chi tiết role + policies\n- `POST /api/v1/roles` — tạo custom role (chain_owner, system_admin)\n- `PATCH /api/v1/roles/:id` — cập nhật custom role\n- `DELETE /api/v1/roles/:id` — xóa custom role\n\n**Policy Management (Story 1.5):**\n- `GET /api/v1/policies` — danh sách policies (có filter)\n- `POST /api/v1/policies` — tạo policy mới\n- `PATCH /api/v1/policies/:id` — cập nhật policy\n- `DELETE /api/v1/policies/:id` — xóa policy",
+    "description": "Postman collection cho Story 1.3–1.6 — Custom Auth, User Management, Role/Policy RBAC & Store Scope Assignment\n\n**Base URL:** `http://localhost:3001/api/v1`\n\n**Seed data mặc định:**\n- Admin: `admin@pos-sdd.local` / `Admin@123456` / PIN `123456` → ALL_STORES scope\n- Cashier: `cashier@pos-sdd.local` / PIN `111111` → SINGLE_STORE (Chi nhánh Quận 1)\n- Manager: `manager@pos-sdd.local` / PIN `222222` → STORE_GROUP (Quận 1 + Quận 3)\n- Tenant slug: `pos-sdd-demo`\n- Store 1 ID: `01900000-0000-7000-8000-000000000001` (Chi nhánh Quận 1)\n- Store 2 ID: `01900000-0000-7000-8000-000000000002` (Chi nhánh Quận 3)\n\n**Auth modes:**\n1. Session (HttpOnly cookie `session_token`) — email/password login\n2. JWT Bearer — PIN login cho POS/KDS\n\n**User Management (Story 1.4):**\n- `POST /api/v1/users` — tạo user mới\n- `GET /api/v1/users` — danh sách users (có pagination + filter)\n- `GET /api/v1/users/:id` — chi tiết user\n- `PATCH /api/v1/users/:id` — cập nhật user\n- `POST /api/v1/users/:id/deactivate` — vô hiệu hóa user\n- `POST /api/v1/users/:id/activate` — kích hoạt user\n- `POST /api/v1/users/:id/roles` — gán roles cho user\n- `POST /api/v1/users/:id/store-assignments` — gán store scope (Story 1.6)\n- `GET /api/v1/users/:id/store-assignments` — xem store assignments (Story 1.6)\n\n**Role Management (Story 1.5):**\n- `GET /api/v1/roles` — danh sách roles (có pagination + filter)\n- `GET /api/v1/roles/:id` — chi tiết role + policies\n- `POST /api/v1/roles` — tạo custom role (chain_owner, system_admin)\n- `PATCH /api/v1/roles/:id` — cập nhật custom role\n- `DELETE /api/v1/roles/:id` — xóa custom role\n\n**Policy Management (Story 1.5):**\n- `GET /api/v1/policies` — danh sách policies (có filter)\n- `POST /api/v1/policies` — tạo policy mới\n- `PATCH /api/v1/policies/:id` — cập nhật policy\n- `DELETE /api/v1/policies/:id` — xóa policy\n\n**Store Management (Story 1.6):**\n- `GET /api/v1/stores` — danh sách stores (có pagination + filter)\n- `GET /api/v1/stores/:id` — chi tiết store + userCount\n- `POST /api/v1/stores` — tạo store mới (chain_owner, system_admin)\n- `PATCH /api/v1/stores/:id` — cập nhật store (chain_owner, system_admin)\n- `POST /api/v1/stores/:id/deactivate` — soft delete store (chain_owner, system_admin)",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -72,6 +72,12 @@
       "value": "",
       "type": "string",
       "description": "Policy ID vừa tạo từ POST /policies — tự động set bởi test script"
+    },
+    {
+      "key": "created_store_id",
+      "value": "01900000-0000-7000-8000-000000000001",
+      "type": "string",
+      "description": "Store ID dùng cho store operations — default là Chi nhánh Quận 1 (seed). Tự động update sau POST /stores hoặc GET /stores"
     }
   ],
   "item": [
@@ -2556,6 +2562,490 @@
               "status": "Not Found",
               "code": 404,
               "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy policy\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7. Store Management Routes (/api/v1/stores/*)",
+      "description": "Store CRUD — tạo/đọc/cập nhật/deactivate stores trong tenant.\n\n**Guards:**\n- GET endpoints: `AuthModeGuard` (session hoặc JWT)\n- POST/PATCH/deactivate: `AuthModeGuard + RoleGuard` (chain_owner, system_admin)\n\n**Seed stores:**\n- `01900000-0000-7000-8000-000000000001` — Chi nhánh Quận 1\n- `01900000-0000-7000-8000-000000000002` — Chi nhánh Quận 3",
+      "item": [
+        {
+          "name": "GET List Stores",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('List stores OK', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('Response has data array', () => pm.expect(body.data).to.be.an('array'));",
+                  "    pm.test('Response has meta', () => pm.expect(body.meta).to.have.property('total'));",
+                  "    if (body.data.length > 0) {",
+                  "        pm.collectionVariables.set('created_store_id', body.data[0].id);",
+                  "        console.log('Store ID saved:', body.data[0].id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/stores",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "stores"],
+              "query": [
+                { "key": "page", "value": "1", "disabled": true },
+                { "key": "limit", "value": "20", "disabled": true },
+                { "key": "isActive", "value": "true", "disabled": true },
+                { "key": "search", "value": "Quận", "disabled": true }
+              ]
+            },
+            "description": "Lấy danh sách stores của tenant (có pagination + filter).\n\n**Query params (tất cả optional):**\n- `page`: số trang (default 1)\n- `limit`: số items/trang (default 20, max 100)\n- `isActive`: `true`/`false` — filter theo trạng thái\n- `search`: tìm theo name hoặc address (ILIKE)\n\n**Test script** tự động lưu `created_store_id` từ store đầu tiên."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"01900000-0000-7000-8000-000000000001\",\n      \"name\": \"Chi nhánh Quận 1\",\n      \"address\": \"123 Nguyễn Huệ, Quận 1, TP.HCM\",\n      \"phone\": \"028-1234-5678\",\n      \"isActive\": true,\n      \"userCount\": 2,\n      \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n      \"updatedAt\": \"2024-01-01T00:00:00.000Z\"\n    }\n  ],\n  \"meta\": { \"page\": 1, \"limit\": 20, \"total\": 2 }\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET Store By ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get store OK', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Response has data.id', () => pm.expect(pm.response.json().data.id).to.be.a('string'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/stores/{{created_store_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "stores", "{{created_store_id}}"]
+            },
+            "description": "Lấy chi tiết store theo ID.\n\n**Trả về:** store info + `userCount` (số users được assign).\n\n**Tenant isolation:** chỉ trả về store thuộc tenant của user hiện tại."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"01900000-0000-7000-8000-000000000001\",\n    \"name\": \"Chi nhánh Quận 1\",\n    \"address\": \"123 Nguyễn Huệ, Quận 1, TP.HCM\",\n    \"phone\": \"028-1234-5678\",\n    \"isActive\": true,\n    \"userCount\": 2,\n    \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n    \"updatedAt\": \"2024-01-01T00:00:00.000Z\"\n  }\n}"
+            },
+            {
+              "name": "404 — Không tìm thấy",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy cửa hàng\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST Create Store",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Create store OK', () => pm.expect(pm.response.code).to.equal(201));",
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('created_store_id', body.data.id);",
+                  "    console.log('New store ID saved:', body.data.id);",
+                  "    pm.test('Response has data.id', () => pm.expect(body.data.id).to.be.a('string'));",
+                  "    pm.test('Store isActive = true', () => pm.expect(body.data.isActive).to.be.true);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chi nhánh Bình Thạnh\",\n  \"address\": \"789 Đinh Bộ Lĩnh, Bình Thạnh, TP.HCM\",\n  \"phone\": \"028-9999-8888\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/stores",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "stores"]
+            },
+            "description": "Tạo store mới trong tenant.\n\n**Yêu cầu role:** `chain_owner` hoặc `system_admin`.\n\n**Validation:**\n- `name`: bắt buộc, tối thiểu 2 ký tự, unique trong tenant\n- `address`: optional\n- `phone`: optional\n\n**Test script** tự động lưu `created_store_id`."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"name\": \"Chi nhánh Bình Thạnh\",\n    \"address\": \"789 Đinh Bộ Lĩnh, Bình Thạnh, TP.HCM\",\n    \"phone\": \"028-9999-8888\",\n    \"isActive\": true,\n    \"userCount\": 0,\n    \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n    \"updatedAt\": \"2024-01-01T00:00:00.000Z\"\n  }\n}"
+            },
+            {
+              "name": "409 — Tên store đã tồn tại",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"statusCode\": 409,\n  \"message\": \"Tên cửa hàng đã tồn tại trong tenant này\"\n}"
+            },
+            {
+              "name": "403 — Không đủ quyền",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"statusCode\": 403,\n  \"message\": \"Forbidden resource\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "PATCH Update Store",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Update store OK', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Response has updated data', () => pm.expect(pm.response.json().data).to.have.property('id'));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "PATCH",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chi nhánh Bình Thạnh (Updated)\",\n  \"phone\": \"028-9999-7777\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/stores/{{created_store_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "stores", "{{created_store_id}}"]
+            },
+            "description": "Cập nhật thông tin store.\n\n**Yêu cầu role:** `chain_owner` hoặc `system_admin`.\n\n**Tất cả fields đều optional** — chỉ update các fields được gửi.\n\n**Validation:** `name` phải unique trong tenant nếu thay đổi."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"name\": \"Chi nhánh Bình Thạnh (Updated)\",\n    \"address\": \"789 Đinh Bộ Lĩnh, Bình Thạnh, TP.HCM\",\n    \"phone\": \"028-9999-7777\",\n    \"isActive\": true,\n    \"userCount\": 0,\n    \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n    \"updatedAt\": \"2024-01-01T00:00:00.000Z\"\n  }\n}"
+            },
+            {
+              "name": "404 — Không tìm thấy",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy cửa hàng\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST Deactivate Store",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Deactivate store OK', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    pm.test('Store isActive = false', () => pm.expect(pm.response.json().data.isActive).to.be.false);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/stores/{{created_store_id}}/deactivate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "stores", "{{created_store_id}}", "deactivate"]
+            },
+            "description": "Deactivate store (soft delete — không xóa khỏi DB).\n\n**Yêu cầu role:** `chain_owner` hoặc `system_admin`.\n\n**Lưu ý:** Store được set `isActive = false`. Không hard delete. Audit log ghi lại số user assignments còn active."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": \"uuid\",\n    \"name\": \"Chi nhánh Bình Thạnh (Updated)\",\n    \"isActive\": false,\n    \"userCount\": 0,\n    \"createdAt\": \"2024-01-01T00:00:00.000Z\",\n    \"updatedAt\": \"2024-01-01T00:00:00.000Z\"\n  }\n}"
+            },
+            {
+              "name": "404 — Không tìm thấy",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy cửa hàng\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "8. User Store Assignments (/api/v1/users/:id/store-assignments)",
+      "description": "Quản lý store assignments cho user — gán/xem phạm vi store của user.\n\n**Scope types:**\n- `SINGLE_STORE`: user chỉ truy cập đúng 1 store được gán — yêu cầu `storeId`\n- `STORE_GROUP`: user truy cập nhóm stores (simplified: direct storeId match) — yêu cầu `storeId`\n- `ALL_STORES`: user truy cập tất cả stores trong tenant — **không cần `storeId`** (optional, để null)\n\n**Lưu ý quan trọng:**\n- `POST /store-assignments` **THAY THẾ** toàn bộ assignments hiện tại (replace strategy)\n- Gửi `assignments: []` để **xóa toàn bộ** assignments\n- Khi assignments thay đổi, user **phải re-login** để JWT mới phản ánh assignments mới\n- `ALL_STORES` phải là assignment **duy nhất** — không được kết hợp với SINGLE_STORE/STORE_GROUP\n- Không cho phép duplicate `storeId` trong cùng 1 request\n\n**Guards:** `AuthModeGuard + RoleGuard` (chain_owner, system_admin) cho POST; `AuthModeGuard` cho GET.",
+      "item": [
+        {
+          "name": "POST Assign Store Scopes",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Assign store scopes OK', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('Response has userId', () => pm.expect(body.data.userId).to.be.a('string'));",
+                  "    pm.test('Response has assignments array', () => pm.expect(body.data.assignments).to.be.an('array'));",
+                  "    console.log('Assignments updated:', JSON.stringify(body.data.assignments));",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignments\": [\n    {\n      \"storeId\": \"01900000-0000-7000-8000-000000000001\",\n      \"scopeType\": \"SINGLE_STORE\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{created_user_id}}/store-assignments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{created_user_id}}", "store-assignments"]
+            },
+            "description": "Gán store assignments cho user — **REPLACE toàn bộ** assignments hiện tại.\n\n**Yêu cầu role:** `chain_owner` hoặc `system_admin`.\n\n**Validation:**\n- `SINGLE_STORE`/`STORE_GROUP`: `storeId` bắt buộc, phải tồn tại và thuộc cùng tenant\n- `ALL_STORES`: `storeId` **không cần** (bỏ qua hoặc không gửi) — exclusive, không kết hợp với scope khác\n- Không cho phép duplicate `storeId` trong cùng 1 request\n- Gửi `assignments: []` để xóa toàn bộ assignments\n\n**Ví dụ SINGLE_STORE:**\n```json\n{ \"assignments\": [{ \"storeId\": \"<store-id>\", \"scopeType\": \"SINGLE_STORE\" }] }\n```\n\n**Ví dụ ALL_STORES (không cần storeId):**\n```json\n{ \"assignments\": [{ \"scopeType\": \"ALL_STORES\" }] }\n```\n\n**Ví dụ STORE_GROUP (2 stores):**\n```json\n{ \"assignments\": [\n  { \"storeId\": \"<store-id-1>\", \"scopeType\": \"STORE_GROUP\" },\n  { \"storeId\": \"<store-id-2>\", \"scopeType\": \"STORE_GROUP\" }\n] }\n```\n\n**Ví dụ xóa toàn bộ:**\n```json\n{ \"assignments\": [] }\n```"
+          },
+          "response": [
+            {
+              "name": "200 OK — SINGLE_STORE",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"userId\": \"user-uuid\",\n    \"assignments\": [\n      { \"storeId\": \"01900000-0000-7000-8000-000000000001\", \"scopeType\": \"SINGLE_STORE\" }\n    ]\n  }\n}"
+            },
+            {
+              "name": "200 OK — ALL_STORES (storeId = null)",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"userId\": \"user-uuid\",\n    \"assignments\": [\n      { \"storeId\": null, \"scopeType\": \"ALL_STORES\" }\n    ]\n  }\n}"
+            },
+            {
+              "name": "200 OK — Clear all (empty assignments)",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"userId\": \"user-uuid\",\n    \"assignments\": []\n  }\n}"
+            },
+            {
+              "name": "400 — storeId không hợp lệ",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"statusCode\": 400,\n  \"message\": \"Một hoặc nhiều storeId không hợp lệ hoặc không thuộc tenant này\"\n}"
+            },
+            {
+              "name": "400 — SINGLE_STORE/STORE_GROUP thiếu storeId",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"statusCode\": 400,\n  \"message\": \"scopeType SINGLE_STORE yêu cầu storeId\"\n}"
+            },
+            {
+              "name": "400 — ALL_STORES kết hợp với scope khác",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"statusCode\": 400,\n  \"message\": \"ALL_STORES phải là assignment duy nhất, không được kết hợp với SINGLE_STORE hoặc STORE_GROUP\"\n}"
+            },
+            {
+              "name": "400 — Duplicate storeId",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"statusCode\": 400,\n  \"message\": \"Trùng lặp storeId: 01900000-0000-7000-8000-000000000001\"\n}"
+            },
+            {
+              "name": "404 — User không tồn tại",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy người dùng\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST Assign Store Scopes — ALL_STORES (no storeId)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignments\": [\n    {\n      \"scopeType\": \"ALL_STORES\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{created_user_id}}/store-assignments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{created_user_id}}", "store-assignments"]
+            },
+            "description": "Gán ALL_STORES scope — user có thể truy cập tất cả stores trong tenant.\n\n**`storeId` không cần** — ALL_STORES là tenant-wide scope, không gắn với store cụ thể nào.\n\n**ALL_STORES phải là assignment duy nhất** — không được gửi cùng với SINGLE_STORE/STORE_GROUP."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"userId\": \"user-uuid\",\n    \"assignments\": [\n      { \"storeId\": null, \"scopeType\": \"ALL_STORES\" }\n    ]\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST Assign Store Scopes — Clear All Assignments",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignments\": []\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{created_user_id}}/store-assignments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{created_user_id}}", "store-assignments"]
+            },
+            "description": "Xóa toàn bộ store assignments của user bằng cách gửi empty array.\n\nSau khi xóa, user không có store access cho đến khi được gán lại."
+          },
+          "response": [
+            {
+              "name": "200 OK — Empty",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"userId\": \"user-uuid\",\n    \"assignments\": []\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST Assign Store Scopes — STORE_GROUP example",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assignments\": [\n    {\n      \"storeId\": \"01900000-0000-7000-8000-000000000001\",\n      \"scopeType\": \"STORE_GROUP\"\n    },\n    {\n      \"storeId\": \"01900000-0000-7000-8000-000000000002\",\n      \"scopeType\": \"STORE_GROUP\"\n    }\n  ]\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{created_user_id}}/store-assignments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{created_user_id}}", "store-assignments"]
+            },
+            "description": "Gán STORE_GROUP scope cho 2 stores (Quận 1 + Quận 3)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET User Store Assignments",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Get store assignments OK', () => pm.expect(pm.response.code).to.equal(200));",
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.test('Response has data array', () => pm.expect(body.data).to.be.an('array'));",
+                  "    if (body.data.length > 0) {",
+                  "        pm.test('Assignment has scopeType', () => pm.expect(body.data[0].scopeType).to.be.a('string'));",
+                  "        // storeId là null cho ALL_STORES scope",
+                  "        if (body.data[0].scopeType !== 'ALL_STORES') {",
+                  "            pm.test('Assignment has storeId', () => pm.expect(body.data[0].storeId).to.be.a('string'));",
+                  "            pm.test('Assignment has store details', () => pm.expect(body.data[0].store).to.have.property('name'));",
+                  "        } else {",
+                  "            pm.test('ALL_STORES has null storeId', () => pm.expect(body.data[0].storeId).to.be.null);",
+                  "            pm.test('ALL_STORES has null store', () => pm.expect(body.data[0].store).to.be.null);",
+                  "        }",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{jwt_token}}" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{created_user_id}}/store-assignments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{created_user_id}}", "store-assignments"]
+            },
+            "description": "Xem store assignments của user — bao gồm store details (name, address, isActive).\n\n**Tenant isolation:** chỉ trả về assignments của user thuộc cùng tenant.\n\n**Trả về:** `{ data: [{ id, storeId, scopeType, store }] }`\n- `SINGLE_STORE`/`STORE_GROUP`: `storeId` là string, `store` có đầy đủ details\n- `ALL_STORES`: `storeId = null`, `store = null`"
+          },
+          "response": [
+            {
+              "name": "200 OK — SINGLE_STORE",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"assign-uuid\",\n      \"storeId\": \"01900000-0000-7000-8000-000000000001\",\n      \"scopeType\": \"SINGLE_STORE\",\n      \"store\": {\n        \"name\": \"Chi nhánh Quận 1\",\n        \"address\": \"123 Nguyễn Huệ, Quận 1, TP.HCM\",\n        \"isActive\": true\n      }\n    }\n  ]\n}"
+            },
+            {
+              "name": "200 OK — ALL_STORES (storeId + store đều null)",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": \"assign-uuid\",\n      \"storeId\": null,\n      \"scopeType\": \"ALL_STORES\",\n      \"store\": null\n    }\n  ]\n}"
+            },
+            {
+              "name": "200 OK — Empty (no assignments)",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": []\n}"
+            },
+            {
+              "name": "404 — User không tồn tại",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"statusCode\": 404,\n  \"message\": \"Không tìm thấy người dùng\"\n}"
             }
           ]
         }

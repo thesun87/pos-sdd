@@ -76,7 +76,7 @@ export class AuthController {
       name: string;
       tenantId: string;
       roles: string[];
-      storeAssignments: { storeId: string; scopeType: string }[];
+      storeAssignments: { storeId: string | null; scopeType: string }[];
     };
   }> {
     const token = req.cookies?.[SESSION_COOKIE_NAME] as string | undefined;

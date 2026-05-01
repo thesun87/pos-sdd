@@ -1,5 +1,5 @@
 export interface StoreAssignment {
-  storeId: string;
+  storeId: string | null;
   scopeType: 'SINGLE_STORE' | 'STORE_GROUP' | 'ALL_STORES';
 }
 
