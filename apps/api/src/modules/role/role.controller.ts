@@ -1,3 +1,4 @@
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import {
   Controller,
   Get,
@@ -23,6 +24,7 @@ import { CreateRoleDto } from './dto/create-role.dto.js';
 import { UpdateRoleDto } from './dto/update-role.dto.js';
 import { ListRolesQueryDto } from './dto/list-roles-query.dto.js';
 
+@ApiTags('Roles')
 @Controller('roles')
 @UseInterceptors(PolicyLoaderInterceptor)
 export class RoleController {
@@ -37,6 +39,7 @@ export class RoleController {
     return this.roleService.listRoles(user.tenantId, query);
   }
 
+  @ApiOperation({ summary: 'Get :id' })
   @Get(':id')
   @UseGuards(AuthModeGuard)
   async getRoleById(
@@ -59,6 +62,7 @@ export class RoleController {
     return { data: result };
   }
 
+  @ApiOperation({ summary: 'Patch :id' })
   @Patch(':id')
   @UseGuards(AuthModeGuard, RoleGuard)
   @Roles('chain_owner', 'system_admin')
@@ -71,6 +75,7 @@ export class RoleController {
     return { data: result };
   }
 
+  @ApiOperation({ summary: 'Delete :id' })
   @Delete(':id')
   @UseGuards(AuthModeGuard, RoleGuard)
   @Roles('chain_owner', 'system_admin')

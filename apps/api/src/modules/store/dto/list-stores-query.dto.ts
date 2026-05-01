@@ -1,20 +1,24 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsBoolean, IsString, IsInt, Min, Max } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 
 export class ListStoresQueryDto {
   @IsOptional()
   @Type(() => Number)
+  @ApiPropertyOptional()
   @IsInt()
   @Min(1)
   page?: number;
 
   @IsOptional()
   @Type(() => Number)
+  @ApiPropertyOptional()
   @IsInt()
   @Min(1)
   @Max(100)
   limit?: number;
 
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   search?: string;
@@ -25,6 +29,7 @@ export class ListStoresQueryDto {
     if (value === 'false') return false;
     return value;
   })
+  @ApiPropertyOptional()
   @IsBoolean()
   isActive?: boolean;
 }

@@ -65,7 +65,7 @@ const mockSessionRow = {
   id: 'session-id-1',
   token: 'random-session-token',
   user_id: 'user-id-123',
-  expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+  expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
   user: {
     id: 'user-id-123',
     tenant_id: 'tenant-id-abc',
@@ -214,7 +214,7 @@ describe('AuthService', () => {
     it('should return null and delete expired session', async () => {
       db.session.findUnique.mockResolvedValue({
         ...mockSessionRow,
-        expires_at: new Date(Date.now() - 1000), // expired
+        expiresAt: new Date(Date.now() - 1000), // expired
       });
 
       const result = await service.getSession('expired-token');

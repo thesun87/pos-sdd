@@ -1,3 +1,4 @@
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import {
   Controller,
   Post,
@@ -24,11 +25,13 @@ import { AuthModeGuard } from '../../common/guards/auth-mode.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { JwtPayload } from '../../common/types/jwt-payload.js';
 
+@ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   // ──────────────── SIGN UP ────────────────
+  @ApiOperation({ summary: 'Post sign-up' })
   @Post('sign-up')
   @HttpCode(HttpStatus.CREATED)
   async signUp(
@@ -38,6 +41,7 @@ export class AuthController {
   }
 
   // ──────────────── SIGN IN ────────────────
+  @ApiOperation({ summary: 'Post sign-in' })
   @Post('sign-in')
   @HttpCode(HttpStatus.OK)
   async signIn(
@@ -65,6 +69,7 @@ export class AuthController {
   }
 
   // ──────────────── GET SESSION ────────────────
+  @ApiOperation({ summary: 'Get session' })
   @Get('session')
   async getSession(
     @Req() req: Request,
@@ -106,6 +111,7 @@ export class AuthController {
   }
 
   // ──────────────── SIGN OUT ────────────────
+  @ApiOperation({ summary: 'Post sign-out' })
   @Post('sign-out')
   @HttpCode(HttpStatus.OK)
   async signOut(
@@ -121,6 +127,7 @@ export class AuthController {
   }
 
   // ──────────────── PIN LOGIN ────────────────
+  @ApiOperation({ summary: 'Post pin-login' })
   @Post('pin-login')
   @HttpCode(HttpStatus.OK)
   async pinLogin(@Body() dto: PinLoginDto): Promise<PinLoginResponseDto> {
@@ -128,6 +135,7 @@ export class AuthController {
   }
 
   // ──────────────── SET PIN ────────────────
+  @ApiOperation({ summary: 'Post set-pin' })
   @Post('set-pin')
   @UseGuards(AuthModeGuard)
   @HttpCode(HttpStatus.OK)
@@ -139,6 +147,7 @@ export class AuthController {
   }
 
   // ──────────────── RESET PIN (admin only) ────────────────
+  @ApiOperation({ summary: 'Post reset-pin' })
   @Post('reset-pin')
   @UseGuards(AuthModeGuard)
   @HttpCode(HttpStatus.OK)

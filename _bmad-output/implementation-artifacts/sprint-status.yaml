@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-24
-last_updated: 2026-05-01 # Story 1-7 in-progress
+last_updated: 2026-05-01 # Story 1-8 in-progress
 project: pos-sdd
 project_key: NOKEY
 tracking_system: file-system
@@ -51,7 +51,7 @@ development_status:
   1-5-role-management-4-layer-rbac-setup: done
   1-6-store-scope-assignment-multi-tenant-isolation: done
   1-7-design-system-foundation-modern-bistro-theme: review
-  1-8-api-foundation-rest-error-handling-swagger: backlog
+  1-8-api-foundation-rest-error-handling-swagger: done
   epic-1-retrospective: optional
 
   # Epic 2: Menu Management & Catalog

@@ -1,3 +1,4 @@
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import {
   Controller,
   Post,
@@ -23,6 +24,7 @@ import { ListUsersQueryDto } from './dto/list-users-query.dto.js';
 import { AssignRolesDto } from './dto/assign-roles.dto.js';
 import { AssignStoreDto } from './dto/assign-store.dto.js';
 
+@ApiTags('Users')
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
@@ -47,6 +49,7 @@ export class UserController {
     return this.userService.listUsers(user.tenantId, query);
   }
 
+  @ApiOperation({ summary: 'Get :id' })
   @Get(':id')
   @UseGuards(AuthModeGuard)
   async getUser(
@@ -60,6 +63,7 @@ export class UserController {
     return { data: result };
   }
 
+  @ApiOperation({ summary: 'Patch :id' })
   @Patch(':id')
   @UseGuards(AuthModeGuard)
   async updateUser(
@@ -71,6 +75,7 @@ export class UserController {
     return { data: result };
   }
 
+  @ApiOperation({ summary: 'Post :id/deactivate' })
   @Post(':id/deactivate')
   @UseGuards(AuthModeGuard)
   @HttpCode(HttpStatus.OK)
@@ -82,6 +87,7 @@ export class UserController {
     return { data: result };
   }
 
+  @ApiOperation({ summary: 'Post :id/activate' })
   @Post(':id/activate')
   @UseGuards(AuthModeGuard)
   @HttpCode(HttpStatus.OK)
@@ -93,6 +99,7 @@ export class UserController {
     return { data: result };
   }
 
+  @ApiOperation({ summary: 'Post :id/roles' })
   @Post(':id/roles')
   @UseGuards(AuthModeGuard, RoleGuard)
   @Roles('chain_owner', 'system_admin')
@@ -106,6 +113,7 @@ export class UserController {
     return { data: result };
   }
 
+  @ApiOperation({ summary: 'Post :id/store-assignments' })
   @Post(':id/store-assignments')
   @UseGuards(AuthModeGuard, RoleGuard)
   @Roles('chain_owner', 'system_admin')
@@ -119,6 +127,7 @@ export class UserController {
     return { data: result };
   }
 
+  @ApiOperation({ summary: 'Get :id/store-assignments' })
   @Get(':id/store-assignments')
   @UseGuards(AuthModeGuard)
   async getStoreAssignments(

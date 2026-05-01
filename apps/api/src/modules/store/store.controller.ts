@@ -1,3 +1,4 @@
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import {
   Controller,
   Get,
@@ -20,6 +21,7 @@ import { CreateStoreDto } from './dto/create-store.dto.js';
 import { UpdateStoreDto } from './dto/update-store.dto.js';
 import { ListStoresQueryDto } from './dto/list-stores-query.dto.js';
 
+@ApiTags('Stores')
 @Controller('stores')
 export class StoreController {
   constructor(private readonly storeService: StoreService) {}
@@ -33,6 +35,7 @@ export class StoreController {
     return this.storeService.listStores(user.tenantId, query);
   }
 
+  @ApiOperation({ summary: 'Get :id' })
   @Get(':id')
   @UseGuards(AuthModeGuard)
   async getStoreById(
@@ -55,6 +58,7 @@ export class StoreController {
     return { data: result };
   }
 
+  @ApiOperation({ summary: 'Patch :id' })
   @Patch(':id')
   @UseGuards(AuthModeGuard, RoleGuard)
   @Roles('chain_owner', 'system_admin')
@@ -67,6 +71,7 @@ export class StoreController {
     return { data: result };
   }
 
+  @ApiOperation({ summary: 'Post :id/deactivate' })
   @Post(':id/deactivate')
   @UseGuards(AuthModeGuard, RoleGuard)
   @Roles('chain_owner', 'system_admin')

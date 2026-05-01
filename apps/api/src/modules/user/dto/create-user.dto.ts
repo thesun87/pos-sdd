@@ -1,3 +1,4 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
   IsString,
@@ -11,18 +12,22 @@ import {
 } from 'class-validator';
 
 export class CreateUserDto {
+  @ApiProperty()
   @IsEmail()
   email!: string;
 
+  @ApiProperty()
   @IsString()
   @MinLength(2)
   name!: string;
 
+  @ApiPropertyOptional()
   @IsOptional()
   @Matches(/^\d{4,6}$/, { message: 'PIN phải là 4-6 chữ số' })
   pin?: string;
 
   // P-7: ArrayMinSize(1), P-8: IsUUID, P-9: ArrayUnique
+  @ApiProperty()
   @IsArray()
   @ArrayMinSize(1, { message: 'Phải có ít nhất 1 vai trò' })
   @ArrayUnique({ message: 'Danh sách vai trò không được trùng lặp' })

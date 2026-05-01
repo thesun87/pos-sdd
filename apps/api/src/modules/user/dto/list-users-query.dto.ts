@@ -1,3 +1,4 @@
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsOptional, IsString, IsBoolean, IsInt, Min, Max, MaxLength } from 'class-validator';
 import { Type, Transform } from 'class-transformer';
 
@@ -7,10 +8,12 @@ export class ListUsersQueryDto {
   @IsInt()
   @Min(1)
   @Max(1000) // P-12: prevent unbounded skip
+  @ApiPropertyOptional()
   page?: number = 1;
 
   @IsOptional()
   @Type(() => Number)
+  @ApiPropertyOptional()
   @IsInt()
   @Min(1)
   @Max(100)
@@ -19,8 +22,10 @@ export class ListUsersQueryDto {
   @IsOptional()
   @IsString()
   @MaxLength(100) // P-11: prevent perf attack via long search string
+  @ApiPropertyOptional()
   search?: string;
 
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   roleId?: string;
@@ -31,6 +36,7 @@ export class ListUsersQueryDto {
     if (value === 'false') return false;
     return value;
   })
+  @ApiPropertyOptional()
   @IsBoolean()
   isActive?: boolean;
 }

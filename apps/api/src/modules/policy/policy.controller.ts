@@ -1,3 +1,4 @@
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import {
   Controller,
   Get,
@@ -23,6 +24,7 @@ import { CreatePolicyDto } from './dto/create-policy.dto.js';
 import { UpdatePolicyDto } from './dto/update-policy.dto.js';
 import { ListPoliciesQueryDto } from './dto/list-policies-query.dto.js';
 
+@ApiTags('Policies')
 @Controller('policies')
 @UseInterceptors(PolicyLoaderInterceptor)
 export class PolicyController {
@@ -49,6 +51,7 @@ export class PolicyController {
     return { data: result };
   }
 
+  @ApiOperation({ summary: 'Patch :id' })
   @Patch(':id')
   @UseGuards(AuthModeGuard, RoleGuard)
   @Roles('chain_owner', 'system_admin')
@@ -61,6 +64,7 @@ export class PolicyController {
     return { data: result };
   }
 
+  @ApiOperation({ summary: 'Delete :id' })
   @Delete(':id')
   @UseGuards(AuthModeGuard, RoleGuard)
   @Roles('chain_owner', 'system_admin')

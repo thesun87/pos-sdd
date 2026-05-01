@@ -294,7 +294,7 @@ describe('UserService', () => {
       const result = await userService.deactivateUser('user-id-123', 'tenant-abc', 'admin-id');
 
       expect(result).toEqual({ success: true });
-      expect(mockPrisma.session.deleteMany).toHaveBeenCalledWith({ where: { user_id: 'user-id-123' } });
+      expect(mockPrisma.session.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-id-123' } });
     });
 
     it('self-deactivation blocked: ném BadRequestException', async () => {
@@ -315,7 +315,7 @@ describe('UserService', () => {
 
       await userService.deactivateUser('user-id-123', 'tenant-abc', 'admin-id');
 
-      expect(mockPrisma.session.deleteMany).toHaveBeenCalledWith({ where: { user_id: 'user-id-123' } });
+      expect(mockPrisma.session.deleteMany).toHaveBeenCalledWith({ where: { userId: 'user-id-123' } });
     });
 
     it('user not found: ném NotFoundException', async () => {
