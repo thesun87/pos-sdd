@@ -3,7 +3,7 @@ import { ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RoleGuard } from './role.guard.js';
 
-const createMockContext = (user: unknown, roles?: string[]): ExecutionContext =>
+const createMockContext = (user: unknown, _roles?: string[]): ExecutionContext =>
   ({
     switchToHttp: () => ({
       getRequest: () => ({ user }),

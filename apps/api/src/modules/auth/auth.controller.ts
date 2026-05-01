@@ -19,7 +19,7 @@ import { SignInDto } from './dto/sign-in.dto.js';
 import { SetPinDto } from './dto/set-pin.dto.js';
 import { ResetPinDto } from './dto/reset-pin.dto.js';
 import type { PinLoginResponseDto } from './dto/pin-login-response.dto.js';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard.js';
+
 import { AuthModeGuard } from '../../common/guards/auth-mode.guard.js';
 import { CurrentUser } from '../../common/decorators/current-user.decorator.js';
 import type { JwtPayload } from '../../common/types/jwt-payload.js';

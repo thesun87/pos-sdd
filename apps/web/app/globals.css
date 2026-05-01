@@ -1,17 +1,63 @@
+@import "tailwindcss";
+
+@theme {
+  /* Modern Bistro Design Tokens */
+  --color-primary: #0D9488;        /* Teal-600 */
+  --color-primary-foreground: #FFFFFF;
+  --color-secondary: #F1F5F9;      /* Slate-100 */
+  --color-accent: #10B981;         /* Emerald-500 */
+  --color-destructive: #EF4444;    /* Red-500 */
+  --color-warning: #F59E0B;        /* Amber-500 */
+  --color-success: #10B981;        /* Emerald-500 */
+  --color-muted: #64748B;          /* Slate-500 */
+  --color-background: #FFFFFF;
+  --color-foreground: #0F172A;     /* Slate-900 */
+  --color-border: #E2E8F0;         /* Slate-200 */
+  --color-ring: #0D9488;           /* Teal-600 */
+
+  /* Semantic Alert Colors */
+  --color-alert-critical: #EF4444;
+  --color-alert-warning: #F59E0B;
+  --color-alert-success: #10B981;
+  --color-alert-info: #3B82F6;
+
+  /* KDS specific */
+  --color-kds-new: #10B981;
+  --color-kds-warning: #F59E0B;
+  --color-kds-overdue: #EF4444;
+
+  /* Spacing (8px base unit) */
+  --spacing-unit: 8px;
+
+  /* Border Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+
+  /* Font */
+  --font-sans: 'Inter', system-ui, sans-serif;
+}
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell,
-    sans-serif;
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+  --primary: 174 84% 29%;           /* Teal-600: hsl(174, 84%, 29%) */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 40% 96.1%;       /* Slate-100 */
+  --secondary-foreground: 222.2 47.4% 11.2%;
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 160 84% 39%;            /* Emerald-500 */
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84.2% 60.2%;     /* Red-500 */
+  --destructive-foreground: 0 0% 100%;
+  --border: 214.3 31.8% 91.4%;      /* Slate-200 */
+  --input: 214.3 31.8% 91.4%;
+  --ring: 174 84% 29%;              /* Teal-600 */
+  --radius: 1rem;                    /* 16px = rounded-2xl */
 }
