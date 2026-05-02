@@ -35,7 +35,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 
 generated: 2026-03-24
-last_updated: 2026-05-01 # Story 1-8 in-progress
+last_updated: 2026-05-02 # Story 2-3 ready-for-dev
 project: pos-sdd
 project_key: NOKEY
 tracking_system: file-system
@@ -55,10 +55,10 @@ development_status:
   epic-1-retrospective: optional
 
   # Epic 2: Menu Management & Catalog
-  epic-2: backlog
-  2-1-category-management-crud-sap-xep: backlog
-  2-2-menu-item-management-crud-hinh-anh: backlog
-  2-3-modifier-groups-topping-system: backlog
+  epic-2: in-progress
+  2-1-category-management-crud-sap-xep: ready-for-dev
+  2-2-menu-item-management-crud-hinh-anh: ready-for-dev
+  2-3-modifier-groups-topping-system: ready-for-dev
   2-4-combo-set-menu-management: backlog
   2-5-availability-control-kitchen-station-routing: backlog
   2-6-menu-sync-to-pos-offline: backlog
